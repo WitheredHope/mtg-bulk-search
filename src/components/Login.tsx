@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import styles from './Login.module.css';
