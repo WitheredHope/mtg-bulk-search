@@ -36,38 +36,23 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/login" />;
   }
 
-  return (
-    <>
-      <Navbar />
-      {children}
-    </>
-  );
+  return <>{children}</>;
 };
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <CardSearch />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/list-set-search"
-          element={
-            <ProtectedRoute>
-              <ListSetSearch />
-            </ProtectedRoute>
-          }
-        />
-        <Route path="/" element={<Navigate to="/login" />} />
-      </Routes>
+      <div className="app-container">
+        <Navbar />
+        <div className="content-container">
+          <Routes>
+            <Route path="/" element={<CardSearch />} />
+            <Route path="/list-set-search" element={<ListSetSearch />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/signup" element={<SignUp />} />
+          </Routes>
+        </div>
+      </div>
     </Router>
   );
 }

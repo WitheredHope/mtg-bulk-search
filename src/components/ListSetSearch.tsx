@@ -342,7 +342,6 @@ const ListSetSearch = () => {
 
   return (
     <div className={styles.container}>
-      <h1>Search Cards by Set</h1>
       <form className={styles.form}>
         <div className={styles.inputGroup}>
           <label htmlFor="listSelect">Select a saved list:</label>

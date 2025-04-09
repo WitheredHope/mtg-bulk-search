@@ -256,7 +256,6 @@ const CardSearch = () => {
 
   return (
     <div className={styles.container}>
-      <h1>MTG Card Search</h1>
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.inputGroup}>
           <label htmlFor="cardList">Enter card names (one per line):</label>
@@ -264,7 +263,7 @@ const CardSearch = () => {
             id="cardList"
             value={cardList}
             onChange={handleCardListChange}
-            placeholder="Enter card names, one per line. You can include quantities like '2 Card Name' or '2x Card Name'"
+            placeholder="Enter card names, one per line. You can include quantities like '2 Card Name' or '2x Card Name' or 'Card Name x2'."
             rows={10}
           />
         </div>

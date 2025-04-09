@@ -1,26 +1,22 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import styles from './CardSearch.module.css';
 
 const Navbar = () => {
-  const location = useLocation();
-
   return (
-    <nav className={styles.navbar}>
-      <div className={styles.navLinks}>
-        <Link 
-          to="/dashboard" 
-          className={`${styles.navLink} ${location.pathname === '/dashboard' ? styles.active : ''}`}
-        >
-          Card Search
-        </Link>
-        <Link 
-          to="/list-set-search" 
-          className={`${styles.navLink} ${location.pathname === '/list-set-search' ? styles.active : ''}`}
-        >
-          Set Search
-        </Link>
+    <div className={styles.navbarWrapper}>
+      <div className={styles.navbarContainer}>
+        <nav className={styles.navbar}>
+          <div className={styles.navLinks}>
+            <Link to="/" className={styles.navLink}>
+              Card Search
+            </Link>
+            <Link to="/list-set-search" className={styles.navLink}>
+              Set Search
+            </Link>
+          </div>
+        </nav>
       </div>
-    </nav>
+    </div>
   );
 };
 
