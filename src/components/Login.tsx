@@ -1,6 +1,6 @@
-import { supabase } from '../config/supabase';
+import { useState } from 'react';
+import { supabase } from '../services/supabase';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import styles from './Login.module.css';
 
 const Login = () => {

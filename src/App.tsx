@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
-import { supabase } from './config/supabase';
+import { supabase } from './services/supabase';
 import Login from './components/Login';
 import SignUp from './components/SignUp';
 import CardSearch from './components/CardSearch';

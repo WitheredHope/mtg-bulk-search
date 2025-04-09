@@ -1,6 +1,6 @@
-import { supabase } from '../config/supabase';
-import { useNavigate, Link } from 'react-router-dom';
 import { useState } from 'react';
+import { supabase } from '../services/supabase';
+import { useNavigate, Link } from 'react-router-dom';
 import styles from './SignUp.module.css';
 
 const SignUp = () => {
