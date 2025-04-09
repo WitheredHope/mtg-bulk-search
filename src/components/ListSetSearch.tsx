@@ -135,7 +135,7 @@ const ListSetSearch = () => {
 
     try {
       const cardNames = selectedList.cards.map(card => card.name);
-      const { foundCards: allFoundCards } = await searchCards(cardNames);
+      const { foundCards: allFoundCards } = await searchCards(cardNames, { uniqueSetsPerCard: false });
 
       // Create a map of sets and their cards with all printings
       const setMap = new Map<string, { card: CardData; printing: SetPrinting }[]>();
