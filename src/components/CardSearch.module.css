@@ -639,4 +639,97 @@
   background-color: #6c757d;
   cursor: not-allowed;
   opacity: 0.65;
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0.5rem;
+  }
+
+  .form {
+    padding: 0.5rem;
+  }
+
+  .inputGroup {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .select {
+    width: 100%;
+  }
+
+  .buttonGroup {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .submitButton {
+    width: 100%;
+  }
+
+  .setsContainer {
+    padding: 0.5rem;
+  }
+
+  .setSection {
+    margin-bottom: 1rem;
+  }
+
+  .setHeader {
+    padding: 0.5rem;
+    font-size: 0.9rem;
+  }
+
+  .setInfo {
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-start;
+  }
+
+  .setCode {
+    font-size: 0.9rem;
+    min-width: 3rem;
+  }
+
+  .setName {
+    font-size: 0.9rem;
+    text-align: left;
+  }
+
+  .cardCount {
+    font-size: 0.8rem;
+  }
+
+  .setTableContainer {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    font-size: 0.8rem;
+    min-width: 600px;
+  }
+
+  .table th {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .table td {
+    padding: 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .colorSymbol {
+    font-size: 0.8rem;
+  }
+
+  .sortableHeader {
+    white-space: nowrap;
+  }
+
+  .expandIcon {
+    font-size: 0.9rem;
+  }
 } 
