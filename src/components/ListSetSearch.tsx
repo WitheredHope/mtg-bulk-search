@@ -39,7 +39,6 @@ interface SortConfig {
 
 const ListSetSearch = () => {
   const [selectedList, setSelectedList] = useState<CardList | null>(null);
-  const [setCode, setSetCode] = useState('');
   const [foundCards, setFoundCards] = useState<CardData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,53 +81,6 @@ const ListSetSearch = () => {
       setSavedLists(lists);
     } catch (error: any) {
       console.error('Failed to load lists:', error);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
-    if (!selectedList) {
-      setError('Please select a list');
-      setIsLoading(false);
-      return;
-    }
-
-    if (!setCode.trim()) {
-      setError('Please enter a set code');
-      setIsLoading(false);
-      return;
-    }
-
-    try {
-      const cardNames = selectedList.cards.map(card => card.name);
-      const { foundCards: allFoundCards } = await searchCards(cardNames);
-      
-      // Filter cards that were printed in the specified set
-      const cardsInSet = allFoundCards.filter(card => 
-        card.printings.some(printing => 
-          printing.set.toLowerCase() === setCode.toLowerCase()
-        )
-      );
-
-      // Add quantities from the original list
-      const cardsWithQuantities = cardsInSet.map(card => {
-        const listEntry = selectedList.cards.find(c => 
-          c.name.toLowerCase() === card.name.toLowerCase()
-        );
-        return {
-          ...card,
-          quantity: listEntry?.quantity || 1
-        };
-      });
-
-      setFoundCards(cardsWithQuantities);
-    } catch (error: any) {
-      setError(error.message);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -391,7 +343,7 @@ const ListSetSearch = () => {
   return (
     <div className={styles.container}>
       <h1>Search Cards by Set</h1>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <form className={styles.form}>
         <div className={styles.inputGroup}>
           <label htmlFor="listSelect">Select a saved list:</label>
           <select
@@ -412,23 +364,8 @@ const ListSetSearch = () => {
           </select>
         </div>
 
-        <div className={styles.inputGroup}>
-          <label htmlFor="setCode">Enter set code:</label>
-          <input
-            id="setCode"
-            type="text"
-            value={setCode}
-            onChange={(e) => setSetCode(e.target.value)}
-            placeholder="e.g., MOM for March of the Machine"
-            className={styles.input}
-          />
-        </div>
-
         {error && <div className={styles.error}>{error}</div>}
         <div className={styles.buttonGroup}>
-          <button type="submit" className={styles.submitButton} disabled={isLoading}>
-            {isLoading ? 'Searching...' : 'Search Cards'}
-          </button>
           <button 
             type="button" 
             className={styles.submitButton} 
