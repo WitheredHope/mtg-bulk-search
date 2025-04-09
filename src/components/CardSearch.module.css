@@ -424,7 +424,29 @@
 }
 
 /* Modern high-contrast mode support */
-@media (forced-colors: active) {
+@media (prefers-contrast: more) {
+  .submitButton,
+  .loginButton,
+  .saveButton {
+    border: 2px solid currentColor;
+  }
+
+  .table th,
+  .table td {
+    border: 1px solid currentColor;
+  }
+
+  .error,
+  .success {
+    border: 2px solid currentColor;
+  }
+
+  .accordionHeader {
+    border: 2px solid currentColor;
+  }
+}
+
+@media (prefers-contrast: custom) {
   .submitButton,
   .loginButton,
   .saveButton {
