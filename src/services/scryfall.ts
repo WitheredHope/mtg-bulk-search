@@ -26,59 +26,59 @@ interface SearchResult {
 export const searchCards = async (
   cardNames: string[],
   options: SearchOptions = { uniqueSetsPerCard: true }
-): Promise<{ foundCards: CardData[], unfoundCards: string[] }> => {
+): Promise<SearchResult> => {
   const foundCards: CardData[] = [];
   const unfoundCards: string[] = [];
 
   for (const cardName of cardNames) {
     try {
-      // Parse quantity from card name (e.g., "Lightning Bolt x2" -> "Lightning Bolt" and 2)
-      const quantityMatch = cardName.match(/x(\d+)$/);
-      const baseCardName = quantityMatch ? cardName.slice(0, -quantityMatch[0].length).trim() : cardName;
-      const quantity = quantityMatch ? parseInt(quantityMatch[1], 10) : 1;
-
-      const response = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(baseCardName)}"`);
+      console.log('Searching for card:', cardName);
+      const response = await fetch(
+        `https://api.scryfall.com/cards/search?q=!"${cardName}"&unique=prints`
+      );
       const data = await response.json();
+      console.log('API Response:', data);
+
+      if (data.object === 'error') {
+        console.log('Card not found:', cardName);
+        unfoundCards.push(cardName);
+        continue;
+      }
 
       if (data.data && data.data.length > 0) {
         const card = data.data[0];
-        const printings: SetPrinting[] = [];
-        const seenSets = new Set<string>();
+        console.log('Found card:', card.name);
 
         // Get all printings of the card
-        const printingsResponse = await fetch(`https://api.scryfall.com/cards/search?q=!"${encodeURIComponent(baseCardName)}"&unique=prints`);
+        const printingsResponse = await fetch(
+          `https://api.scryfall.com/cards/search?q=!"${cardName}"&unique=prints`
+        );
         const printingsData = await printingsResponse.json();
+        console.log('Printings data:', printingsData);
 
-        if (printingsData.data) {
-          for (const printing of printingsData.data) {
-            // If uniqueSetsPerCard is true, only add each set once
-            if (options.uniqueSetsPerCard) {
-              if (!seenSets.has(printing.set)) {
-                seenSets.add(printing.set);
-                printings.push({
-                  set: printing.set,
-                  set_name: printing.set_name,
-                  rarity: printing.rarity,
-                  collector_number: printing.collector_number
-                });
-              }
-            } else {
-              // If uniqueSetsPerCard is false, add all printings
-              printings.push({
-                set: printing.set,
-                set_name: printing.set_name,
-                rarity: printing.rarity,
-                collector_number: printing.collector_number
-              });
+        // Extract colors from the card data
+        const colors = card.colors || [];
+        if (card.card_faces && card.card_faces.length > 0) {
+          // For double-faced cards, combine colors from both faces
+          const allColors = new Set<string>();
+          card.card_faces.forEach((face: { colors?: string[] }) => {
+            if (face.colors) {
+              face.colors.forEach((color: string) => allColors.add(color));
             }
-          }
+          });
+          colors.push(...Array.from(allColors));
         }
 
         foundCards.push({
           name: card.name,
-          quantity: quantity,
-          printings: printings,
-          colors: card.colors || [],
+          quantity: 1, // Default quantity, will be updated by the component
+          printings: printingsData.data.map((printing: any) => ({
+            set: printing.set,
+            set_name: printing.set_name,
+            rarity: printing.rarity,
+            collector_number: printing.collector_number
+          })),
+          colors,
           mana_cost: card.mana_cost || '',
           type_line: card.type_line || ''
         });
@@ -86,10 +86,11 @@ export const searchCards = async (
         unfoundCards.push(cardName);
       }
     } catch (error) {
-      console.error(`Error searching for card ${cardName}:`, error);
+      console.error('Error searching for card:', cardName, error);
       unfoundCards.push(cardName);
     }
   }
 
+  console.log('Search results:', { foundCards, unfoundCards });
   return { foundCards, unfoundCards };
 }; 

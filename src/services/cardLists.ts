@@ -11,24 +11,51 @@ export interface CardList {
   updated_at: string;
 }
 
-export const saveCardList = async (name: string, cards: { name: string; quantity: number }[]) => {
-  const { data, error } = await supabase
-    .from('card_lists')
-    .insert([
-      {
+export const saveCardList = async (
+  name: string,
+  cards: { name: string; quantity: number }[],
+  listId?: string
+): Promise<void> => {
+  if (!supabase) {
+    throw new Error('Supabase client not available');
+  }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('Not authenticated');
+  }
+
+  if (listId) {
+    // Update existing list
+    const { error } = await supabase
+      .from('card_lists')
+      .update({
         name,
         cards,
-        user_id: (await supabase.auth.getUser()).data.user?.id
-      }
-    ])
-    .select()
-    .single();
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', listId)
+      .eq('user_id', session.user.id);
 
-  if (error) {
-    console.error('Error saving card list:', error);
-    throw error;
+    if (error) {
+      throw new Error(error.message);
+    }
+  } else {
+    // Create new list
+    const { error } = await supabase
+      .from('card_lists')
+      .insert({
+        name,
+        cards,
+        user_id: session.user.id,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+
+    if (error) {
+      throw new Error(error.message);
+    }
   }
-  return data;
 };
 
 export const getCardLists = async () => {
