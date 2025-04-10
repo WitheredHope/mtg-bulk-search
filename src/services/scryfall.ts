@@ -32,29 +32,23 @@ export const searchCards = async (
 
   for (const cardName of cardNames) {
     try {
-      console.log('Searching for card:', cardName);
       const response = await fetch(
         `https://api.scryfall.com/cards/search?q=!"${cardName}"&unique=prints`
       );
       const data = await response.json();
-      console.log('API Response:', data);
-
       if (data.object === 'error') {
-        console.log('Card not found:', cardName);
         unfoundCards.push(cardName);
         continue;
       }
 
       if (data.data && data.data.length > 0) {
         const card = data.data[0];
-        console.log('Found card:', card.name);
 
         // Get all printings of the card
         const printingsResponse = await fetch(
           `https://api.scryfall.com/cards/search?q=!"${cardName}"&unique=prints`
         );
         const printingsData = await printingsResponse.json();
-        console.log('Printings data:', printingsData);
 
         // Extract colors from the card data
         const colors = card.colors || [];
@@ -86,11 +80,9 @@ export const searchCards = async (
         unfoundCards.push(cardName);
       }
     } catch (error) {
-      console.error('Error searching for card:', cardName, error);
       unfoundCards.push(cardName);
     }
   }
 
-  console.log('Search results:', { foundCards, unfoundCards });
   return { foundCards, unfoundCards };
 }; 

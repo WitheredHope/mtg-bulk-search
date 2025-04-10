@@ -13,6 +13,9 @@ const Navbar = () => {
             <Link to="/list-set-search" className={styles.navLink}>
               Set Search
             </Link>
+            <Link to="/set-grouping" className={styles.navLink}>
+              Manage Set Groups
+            </Link>
           </div>
         </nav>
       </div>

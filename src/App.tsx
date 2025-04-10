@@ -6,6 +6,7 @@ import SignUp from './components/SignUp';
 import CardSearch from './components/CardSearch';
 import ListSetSearch from './components/ListSetSearch';
 import Navbar from './components/Navbar';
+import SetGroupingPage from './pages/SetGroupingPage';
 import './App.css';
 
 // Protected Route wrapper component
@@ -50,6 +51,7 @@ function App() {
             <Route path="/list-set-search" element={<ListSetSearch />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
+            <Route path="/set-grouping" element={<SetGroupingPage />} />
           </Routes>
         </div>
       </div>

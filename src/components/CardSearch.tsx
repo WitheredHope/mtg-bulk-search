@@ -381,7 +381,6 @@ const CardSearch = () => {
               </thead>
               <tbody>
                 {foundCards.map((card, index) => {
-                  console.log('Rendering card:', card);
                   return (
                     <tr key={index} className={getRowColorClass(card.colors)}>
                       <td>{card.quantity}</td>

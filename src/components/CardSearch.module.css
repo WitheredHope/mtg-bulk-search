@@ -108,35 +108,31 @@
   margin-bottom: 1rem;
   border: 1px solid #ddd;
   border-radius: 4px;
-  overflow: visible;
+  overflow: hidden;
   box-sizing: border-box;
   position: relative;
 }
 
 .setTableContainer {
-  overflow-x: auto;
+  width: 100%;
   max-height: 0;
   overflow: hidden;
   transition: max-height 0.3s ease-out;
-  width: 100%;
   margin: 0;
   box-sizing: border-box;
-  -webkit-overflow-scrolling: touch;
   position: relative;
 }
 
 .setTableContainer.expanded {
   max-height: none;
-  overflow-x: auto;
 }
 
 .table {
   width: 100%;
   border-collapse: collapse;
   margin: 0;
-  table-layout: fixed;
+  table-layout: auto;
   box-sizing: border-box;
-  min-width: 1200px;
   font-size: 0.9rem;
 }
 
@@ -148,6 +144,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 0;
 }
 
 .table th {
@@ -157,37 +154,81 @@
   height: 50px;
   vertical-align: bottom;
   font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-right: 0.5rem;
+}
+
+.table th:hover {
+  background-color: #e9ecef;
+}
+
+.table th::after {
+  content: '↕';
+  position: absolute;
+  right: 5px;
+  opacity: 0.3;
+}
+
+.table th:hover::after {
+  opacity: 0.6;
+}
+
+.table th.sorted-asc::after {
+  content: '↑';
+  opacity: 1;
+}
+
+.table th.sorted-desc::after {
+  content: '↓';
+  opacity: 1;
 }
 
 .table th:nth-child(1),
 .table td:nth-child(1) {
-  width: 5%;
+  width: fit-content;
+  min-width: 2rem;
+  max-width: 2rem;
   text-align: center;
 }
 
 .table th:nth-child(2),
 .table td:nth-child(2) {
-  width: 25%;
+  width: auto;
+  min-width: 8rem;
 }
 
 .table th:nth-child(3),
 .table td:nth-child(3) {
-  width: 10%;
+  width: auto;
+  min-width: 6rem;
 }
 
 .table th:nth-child(4),
 .table td:nth-child(4) {
-  width: 20%;
+  width: fit-content;
+  min-width: 2.5rem;
+  max-width: 2.5rem;
+  text-align: center;
 }
 
 .table th:nth-child(5),
 .table td:nth-child(5) {
-  width: 15%;
+  width: fit-content;
+  min-width: 1.5rem;
+  max-width: 1.5rem;
+  text-align: center;
 }
 
 .table th:nth-child(6),
 .table td:nth-child(6) {
-  width: 15%;
+  width: fit-content;
+  min-width: 4rem;
+  max-width: 6rem;
 }
 
 .table th:nth-child(7),
@@ -207,11 +248,12 @@
 
 .colors {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.25rem;
+  justify-content: center;
 }
 
 .colorSymbol {
-  font-size: 1.2rem;
+  font-size: 0.8rem;
 }
 
 .printings {
@@ -270,11 +312,8 @@
 }
 
 .rarity {
-  text-transform: capitalize;
-  padding: 0.1rem 0.3rem;
-  border-radius: 3px;
-  font-size: 0.8em;
-  background-color: #e9ecef;
+  text-align: center;
+  font-size: 0.8rem;
 }
 
 .collectorNumber {
@@ -339,6 +378,7 @@
   display: flex;
   gap: 1rem;
   margin-top: 1rem;
+  position: relative;
 }
 
 .accordion {
@@ -756,12 +796,11 @@
   .setTableContainer {
     width: 100%;
     margin: 0;
-    overflow-x: auto;
+    overflow-x: hidden;
   }
 
   .table {
     width: 100%;
-    min-width: 1200px;
     font-size: 0.8rem;
   }
 
@@ -801,6 +840,46 @@
     padding: 0;
     width: 100%;
   }
+
+  .table th:nth-child(1),
+  .table td:nth-child(1) {
+    width: fit-content;
+    min-width: 2rem;
+    max-width: 2rem;
+  }
+
+  .table th:nth-child(2),
+  .table td:nth-child(2) {
+    width: auto;
+    min-width: 6rem;
+  }
+
+  .table th:nth-child(3),
+  .table td:nth-child(3) {
+    width: auto;
+    min-width: 5rem;
+  }
+
+  .table th:nth-child(4),
+  .table td:nth-child(4) {
+    width: fit-content;
+    min-width: 2.5rem;
+    max-width: 2.5rem;
+  }
+
+  .table th:nth-child(5),
+  .table td:nth-child(5) {
+    width: fit-content;
+    min-width: 1.5rem;
+    max-width: 1.5rem;
+  }
+
+  .table th:nth-child(6),
+  .table td:nth-child(6) {
+    width: fit-content;
+    min-width: 3rem;
+    max-width: 5rem;
+  }
 }
 
 @media (max-width: 1000px) {
@@ -810,4 +889,281 @@
     min-width: 100%;
     width: 100%;
   }
+}
+
+.columnVisibility {
+  position: relative;
+  display: inline-block;
+}
+
+.columnVisibilityButton {
+  padding: 0.5rem 1rem;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.columnVisibilityButton:hover {
+  background-color: #e9ecef;
+}
+
+.columnVisibilityDropdown {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  min-width: 200px;
+}
+
+.columnVisibilityOption {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  cursor: pointer;
+}
+
+.columnVisibilityOption:hover {
+  background-color: #f8f9fa;
+}
+
+.columnVisibilityOption input[type="checkbox"] {
+  margin: 0;
+}
+
+.columnVisibilityOption label {
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+
+.buttonGroup {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.hiddenColumn {
+  display: none;
+}
+
+.setGrouping {
+  padding: 1rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.groupInput {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.groupInput input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+}
+
+.groupInput button {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.groupInput button:hover {
+  background-color: #0056b3;
+}
+
+.groupsList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.groupItem {
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1rem;
+  background-color: white;
+}
+
+.groupHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.groupHeader h3 {
+  margin: 0;
+}
+
+.groupHeader button {
+  padding: 0.25rem 0.5rem;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.groupHeader button:hover {
+  background-color: #c82333;
+}
+
+.groupSets {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.setList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.setItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin: 4px 0;
+}
+
+.setItem button {
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.availableSets {
+  margin-top: 1rem;
+}
+
+.availableSets h4 {
+  margin-bottom: 0.5rem;
+}
+
+.setGroup {
+  margin-bottom: 2rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1rem;
+  background-color: #f8f9fa;
+}
+
+.setGroup h2 {
+  margin: 0 0 1rem 0;
+  color: #495057;
+  font-size: 1.25rem;
+  border-bottom: 1px solid #dee2e6;
+  padding-bottom: 0.5rem;
+}
+
+.addSetContainer {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
+.setInputContainer {
+  position: relative;
+  flex: 1;
+}
+
+.setInput {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.suggestion {
+  padding: 0.5rem;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f3f5;
+}
+
+.suggestion:hover {
+  background-color: #f8f9fa;
+}
+
+.suggestion:last-child {
+  border-bottom: none;
+}
+
+.addSetButton {
+  padding: 0.5rem 1rem;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.addSetButton:hover {
+  background-color: #0056b3;
+}
+
+.removeSetButton {
+  background-color: #ff4444;
+  color: #ff4444;
+  border: none;
+  border-radius: 4px;
+  padding: 2px 6px;
+  margin-left: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.removeSetButton:hover {
+  background-color: #cc0000;
+  color: white;
 } 

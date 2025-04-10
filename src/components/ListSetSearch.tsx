@@ -3,6 +3,7 @@ import { searchCards } from '../services/scryfall';
 import { getCardLists, CardList } from '../services/cardLists';
 import { supabase } from '../services/supabase';
 import styles from './CardSearch.module.css';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 interface SetPrinting {
   set: string;
@@ -37,7 +38,15 @@ interface SortConfig {
   direction: 'asc' | 'desc';
 }
 
+interface ColumnVisibility {
+  colors: boolean;
+  rarity: boolean;
+  collectorNumber: boolean;
+  type: boolean;
+}
+
 const ListSetSearch = () => {
+  const location = useLocation();
   const [selectedList, setSelectedList] = useState<CardList | null>(null);
   const [foundCards, setFoundCards] = useState<CardData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,9 +57,22 @@ const ListSetSearch = () => {
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
   const [setNames, setSetNames] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'collector_number', direction: 'asc' });
+  const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
+    colors: true,
+    rarity: true,
+    collectorNumber: true,
+    type: false
+  });
+  const [showColumnDropdown, setShowColumnDropdown] = useState(false);
+  const [customGroups, setCustomGroups] = useState<any[]>([]);
+  const [showGroupedSets, setShowGroupedSets] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     checkAuth();
+    loadCustomGroups();
   }, []);
 
   const checkAuth = async () => {
@@ -84,6 +106,24 @@ const ListSetSearch = () => {
     }
   };
 
+  const loadCustomGroups = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data, error } = await supabase
+          .from('set_groups')
+          .select('*')
+          .eq('user_id', session.user.id);
+        
+        if (error) throw error;
+        console.log('Loaded custom groups:', data); // Debug log
+        setCustomGroups(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading custom groups:', error);
+    }
+  };
+
   const handleViewAllSets = async () => {
     if (!selectedList) {
       setError('Please select a list first');
@@ -92,6 +132,7 @@ const ListSetSearch = () => {
 
     setIsLoading(true);
     setError(null);
+    setShowGroupedSets(false);
 
     try {
       const cardNames = selectedList.cards.map(card => card.name);
@@ -171,6 +212,17 @@ const ListSetSearch = () => {
       G: '🟢',
     };
     return colorMap[color] || '';
+  };
+
+  const getSortedColors = (colors: string[]) => {
+    const colorOrder: { [key: string]: number } = {
+      W: 0,
+      U: 1,
+      B: 2,
+      R: 3,
+      G: 4
+    };
+    return [...colors].sort((a, b) => colorOrder[a] - colorOrder[b]);
   };
 
   const getRarityClass = (rarity: string) => {
@@ -340,41 +392,365 @@ const ListSetSearch = () => {
     });
   };
 
+  const toggleColumnVisibility = (column: keyof ColumnVisibility) => {
+    setColumnVisibility(prev => ({
+      ...prev,
+      [column]: !prev[column]
+    }));
+  };
+
+  const getColumnClass = (column: keyof ColumnVisibility) => {
+    return columnVisibility[column] ? '' : styles.hiddenColumn;
+  };
+
+  const toggleSet = (setCode: string) => {
+    setExpandedSets(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(setCode)) {
+        newSet.delete(setCode);
+      } else {
+        newSet.add(setCode);
+      }
+      return newSet;
+    });
+  };
+
+  const getGroupedSets = () => {
+    if (customGroups.length === 0) return null;
+
+    const groupedSets: { [key: string]: SetData[] } = {};
+    const ungroupedSets: SetData[] = [];
+
+    // Initialize groups
+    customGroups.forEach(group => {
+      groupedSets[group.name] = [];
+    });
+
+    // Sort sets into groups
+    allSets.forEach(set => {
+      let addedToGroup = false;
+      for (const group of customGroups) {
+        // Convert both to uppercase for case-insensitive comparison
+        if (group.sets.map((s: string) => s.toUpperCase()).includes(set.setCode.toUpperCase())) {
+          if (!groupedSets[group.name]) {
+            groupedSets[group.name] = [];
+          }
+          groupedSets[group.name].push(set);
+          addedToGroup = true;
+          break;
+        }
+      }
+      if (!addedToGroup) {
+        ungroupedSets.push(set);
+      }
+    });
+
+    // Sort sets within each group by card count
+    Object.keys(groupedSets).forEach(groupName => {
+      groupedSets[groupName].sort((a, b) => b.cardCount - a.cardCount);
+    });
+
+    // Sort ungrouped sets by card count
+    ungroupedSets.sort((a, b) => b.cardCount - a.cardCount);
+
+    return { groupedSets, ungroupedSets };
+  };
+
+  const renderSetGroups = () => {
+    const groupedData = getGroupedSets();
+    if (!groupedData) return null;
+
+    return (
+      <>
+        {Object.entries(groupedData.groupedSets).map(([groupName, groupSets]) => (
+          <div key={groupName} className={styles.setGroup}>
+            <h2>{groupName}</h2>
+            {groupSets.map(set => (
+              <div key={set.setCode} className={styles.setSection}>
+                <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
+                  <div className={styles.setInfo}>
+                    <span className={styles.setCode}>{set.setCode}</span>
+                    <span className={styles.setName}>{set.setName}</span>
+                    <span className={styles.cardCount}>({set.cardCount} cards)</span>
+                  </div>
+                  <span className={styles.expandIcon}>
+                    {expandedSets.has(set.setCode) ? '▼' : '▶'}
+                  </span>
+                </div>
+                <div className={`${styles.setTableContainer} ${expandedSets.has(set.setCode) ? styles.expanded : ''}`}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th 
+                          onClick={() => handleSort('quantity')}
+                          className={sortConfig.column === 'quantity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                        >
+                          Quantity
+                        </th>
+                        <th 
+                          onClick={() => handleSort('name')}
+                          className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                        >
+                          Name
+                        </th>
+                        <th 
+                          className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('type_line')}
+                        >
+                          Type
+                        </th>
+                        <th 
+                          className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('colors')}
+                        >
+                          Colors
+                        </th>
+                        <th 
+                          className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('rarity')}
+                        >
+                          Rarity
+                        </th>
+                        <th 
+                          className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('collector_number')}
+                        >
+                          Collector #
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getSortedCards(set.cards).map(({ card, printing }, index) => (
+                        <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
+                          <td>{card.quantity}</td>
+                          <td>{card.name}</td>
+                          <td className={getColumnClass('type')}>
+                            {card.type_line}
+                          </td>
+                          <td className={getColumnClass('colors')}>
+                            {getSortedColors(card.colors).map(color => (
+                              <span key={color} className={styles.colorSymbol}>
+                                {getColorSymbol(color)}
+                              </span>
+                            ))}
+                          </td>
+                          <td className={getColumnClass('rarity')}>
+                            <span className={getRarityClass(printing.rarity)}>
+                              {printing.rarity.charAt(0).toUpperCase()}
+                            </span>
+                          </td>
+                          <td className={getColumnClass('collectorNumber')}>
+                            {printing.collector_number}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+        {groupedData.ungroupedSets.length > 0 && (
+          <div className={styles.setGroup}>
+            <h2>Ungrouped Sets</h2>
+            {groupedData.ungroupedSets.map(set => (
+              <div key={set.setCode} className={styles.setSection}>
+                <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
+                  <div className={styles.setInfo}>
+                    <span className={styles.setCode}>{set.setCode}</span>
+                    <span className={styles.setName}>{set.setName}</span>
+                    <span className={styles.cardCount}>({set.cardCount} cards)</span>
+                  </div>
+                  <span className={styles.expandIcon}>
+                    {expandedSets.has(set.setCode) ? '▼' : '▶'}
+                  </span>
+                </div>
+                <div className={`${styles.setTableContainer} ${expandedSets.has(set.setCode) ? styles.expanded : ''}`}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th 
+                          onClick={() => handleSort('quantity')}
+                          className={sortConfig.column === 'quantity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                        >
+                          Quantity
+                        </th>
+                        <th 
+                          onClick={() => handleSort('name')}
+                          className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                        >
+                          Name
+                        </th>
+                        <th 
+                          className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('type_line')}
+                        >
+                          Type
+                        </th>
+                        <th 
+                          className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('colors')}
+                        >
+                          Colors
+                        </th>
+                        <th 
+                          className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('rarity')}
+                        >
+                          Rarity
+                        </th>
+                        <th 
+                          className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('collector_number')}
+                        >
+                          Collector #
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getSortedCards(set.cards).map(({ card, printing }, index) => (
+                        <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
+                          <td>{card.quantity}</td>
+                          <td>{card.name}</td>
+                          <td className={getColumnClass('type')}>
+                            {card.type_line}
+                          </td>
+                          <td className={getColumnClass('colors')}>
+                            {getSortedColors(card.colors).map(color => (
+                              <span key={color} className={styles.colorSymbol}>
+                                {getColorSymbol(color)}
+                              </span>
+                            ))}
+                          </td>
+                          <td className={getColumnClass('rarity')}>
+                            <span className={getRarityClass(printing.rarity)}>
+                              {printing.rarity.charAt(0).toUpperCase()}
+                            </span>
+                          </td>
+                          <td className={getColumnClass('collectorNumber')}>
+                            {printing.collector_number}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  };
+
+  const handleGroupSets = () => {
+    if (customGroups.length === 0) {
+      setError('No custom groups available. Please create groups in the Set Grouping page.');
+      return;
+    }
+    if (allSets.length === 0) {
+      setError('Please load a list first by clicking "View All Sets"');
+      return;
+    }
+    setShowGroupedSets(!showGroupedSets);
+  };
+
   return (
     <div className={styles.container}>
-      <form className={styles.form}>
-        <div className={styles.inputGroup}>
-          <label htmlFor="listSelect">Select a saved list:</label>
-          <select
-            id="listSelect"
-            value={selectedList?.id || ''}
-            onChange={(e) => {
-              const list = savedLists.find(l => l.id === e.target.value);
-              setSelectedList(list || null);
-            }}
-            className={styles.select}
-          >
-            <option value="">-- Select a list --</option>
-            {savedLists.map(list => (
-              <option key={list.id} value={list.id}>
-                {list.name}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div className={styles.navbar}>
+        <form className={styles.form}>
+          <div className={styles.inputGroup}>
+            <label htmlFor="listSelect">Select a saved list:</label>
+            <select
+              id="listSelect"
+              value={selectedList?.id || ''}
+              onChange={(e) => {
+                const list = savedLists.find(l => l.id === e.target.value);
+                setSelectedList(list || null);
+              }}
+              className={styles.select}
+            >
+              <option value="">-- Select a list --</option>
+              {savedLists.map(list => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-        {error && <div className={styles.error}>{error}</div>}
-        <div className={styles.buttonGroup}>
-          <button 
-            type="button" 
-            className={styles.submitButton} 
-            onClick={handleViewAllSets}
-            disabled={isLoading || !selectedList}
-          >
-            View All Sets
-          </button>
-        </div>
-      </form>
+          {error && <div className={styles.error}>{error}</div>}
+          <div className={styles.buttonGroup}>
+            <button 
+              type="button" 
+              className={styles.submitButton} 
+              onClick={handleViewAllSets}
+              disabled={isLoading || !selectedList}
+            >
+              View All Sets
+            </button>
+            <button 
+              type="button" 
+              className={styles.submitButton} 
+              onClick={handleGroupSets}
+              disabled={isLoading || !selectedList || allSets.length === 0}
+            >
+              {showGroupedSets ? 'Ungroup Sets' : 'Group Sets'}
+            </button>
+            <button
+              type="button"
+              className={styles.submitButton}
+              onClick={(e) => {
+                e.preventDefault();
+                setShowColumnDropdown(!showColumnDropdown);
+              }}
+            >
+              Columns
+            </button>
+            {showColumnDropdown && (
+              <div className={styles.columnVisibilityDropdown}>
+                <div className={styles.columnVisibilityOption}>
+                  <input
+                    type="checkbox"
+                    id="colors"
+                    checked={columnVisibility.colors}
+                    onChange={() => toggleColumnVisibility('colors')}
+                  />
+                  <label htmlFor="colors">Colors</label>
+                </div>
+                <div className={styles.columnVisibilityOption}>
+                  <input
+                    type="checkbox"
+                    id="rarity"
+                    checked={columnVisibility.rarity}
+                    onChange={() => toggleColumnVisibility('rarity')}
+                  />
+                  <label htmlFor="rarity">Rarity</label>
+                </div>
+                <div className={styles.columnVisibilityOption}>
+                  <input
+                    type="checkbox"
+                    id="collectorNumber"
+                    checked={columnVisibility.collectorNumber}
+                    onChange={() => toggleColumnVisibility('collectorNumber')}
+                  />
+                  <label htmlFor="collectorNumber">Collector #</label>
+                </div>
+                <div className={styles.columnVisibilityOption}>
+                  <input
+                    type="checkbox"
+                    id="type"
+                    checked={columnVisibility.type}
+                    onChange={() => toggleColumnVisibility('type')}
+                  />
+                  <label htmlFor="type">Type</label>
+                </div>
+              </div>
+            )}
+          </div>
+        </form>
+      </div>
 
       {!isAuthenticated && (
         <div className={styles.authMessage}>
@@ -408,7 +784,7 @@ const ListSetSearch = () => {
                     </span>
                   </td>
                   <td>
-                    {card.colors.map(color => (
+                    {getSortedColors(card.colors).map(color => (
                       <span key={color} className={styles.colorSymbol}>
                         {getColorSymbol(color)}
                       </span>
@@ -424,44 +800,59 @@ const ListSetSearch = () => {
         </div>
       )}
 
-      {allSets.length > 0 && (
-        <div className={styles.setsContainer}>
-          {allSets.map(set => (
+      <div className={styles.setsContainer}>
+        {showGroupedSets && customGroups.length > 0 ? renderSetGroups() : (
+          allSets.map(set => (
             <div key={set.setCode} className={styles.setSection}>
-              <div className={styles.setHeader} onClick={() => setExpandedSet(expandedSet === set.setCode ? null : set.setCode)}>
+              <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
                 <div className={styles.setInfo}>
                   <span className={styles.setCode}>{set.setCode}</span>
                   <span className={styles.setName}>{set.setName}</span>
                   <span className={styles.cardCount}>({set.cardCount} cards)</span>
                 </div>
                 <span className={styles.expandIcon}>
-                  {expandedSet === set.setCode ? '▼' : '▶'}
+                  {expandedSets.has(set.setCode) ? '▼' : '▶'}
                 </span>
               </div>
-              <div className={`${styles.setTableContainer} ${expandedSet === set.setCode ? styles.expanded : ''}`}>
+              <div className={`${styles.setTableContainer} ${expandedSets.has(set.setCode) ? styles.expanded : ''}`}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th onClick={() => handleSort('quantity')} className={styles.sortableHeader}>
-                        # {sortConfig.column === 'quantity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        onClick={() => handleSort('quantity')}
+                        className={sortConfig.column === 'quantity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                      >
+                        Quantity
                       </th>
-                      <th onClick={() => handleSort('name')} className={styles.sortableHeader}>
-                        Name {sortConfig.column === 'name' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        onClick={() => handleSort('name')}
+                        className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                      >
+                        Name
                       </th>
-                      <th onClick={() => handleSort('collector_number')} className={styles.sortableHeader}>
-                        Col # {sortConfig.column === 'collector_number' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                        onClick={() => handleSort('type_line')}
+                      >
+                        Type
                       </th>
-                      <th onClick={() => handleSort('type_line')} className={styles.sortableHeader}>
-                        Type {sortConfig.column === 'type_line' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                        onClick={() => handleSort('colors')}
+                      >
+                        Colors
                       </th>
-                      <th onClick={() => handleSort('colors')} className={styles.sortableHeader}>
-                        Colors {sortConfig.column === 'colors' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                        onClick={() => handleSort('rarity')}
+                      >
+                        Rarity
                       </th>
-                      <th onClick={() => handleSort('mana_cost')} className={styles.sortableHeader}>
-                        Mana Cost {sortConfig.column === 'mana_cost' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
-                      </th>
-                      <th onClick={() => handleSort('rarity')} className={styles.sortableHeader}>
-                        R {sortConfig.column === 'rarity' && (sortConfig.direction === 'asc' ? '↑' : '↓')}
+                      <th 
+                        className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                        onClick={() => handleSort('collector_number')}
+                      >
+                        Collector #
                       </th>
                     </tr>
                   </thead>
@@ -470,18 +861,23 @@ const ListSetSearch = () => {
                       <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
                         <td>{card.quantity}</td>
                         <td>{card.name}</td>
-                        <td>{printing.collector_number}</td>
-                        <td>{card.type_line}</td>
-                        <td>
-                          {card.colors.map(color => (
+                        <td className={getColumnClass('type')}>
+                          {card.type_line}
+                        </td>
+                        <td className={getColumnClass('colors')}>
+                          {getSortedColors(card.colors).map(color => (
                             <span key={color} className={styles.colorSymbol}>
                               {getColorSymbol(color)}
                             </span>
                           ))}
                         </td>
-                        <td>{card.mana_cost}</td>
-                        <td className={getRarityClass(printing.rarity)}>
-                          {printing.rarity.charAt(0).toUpperCase()}
+                        <td className={getColumnClass('rarity')}>
+                          <span className={getRarityClass(printing.rarity)}>
+                            {printing.rarity.charAt(0).toUpperCase()}
+                          </span>
+                        </td>
+                        <td className={getColumnClass('collectorNumber')}>
+                          {printing.collector_number}
                         </td>
                       </tr>
                     ))}
@@ -489,11 +885,11 @@ const ListSetSearch = () => {
                 </table>
               </div>
             </div>
-          ))}
-        </div>
-      )}
+          ))
+        )}
+      </div>
     </div>
   );
 };
 
-export default ListSetSearch; 
+export default ListSetSearch;
