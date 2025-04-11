@@ -10,6 +10,7 @@ interface SetPrinting {
   set_name: string;
   rarity: string;
   collector_number: string;
+  set_type: string;
 }
 
 interface CardData {
@@ -58,6 +59,7 @@ const ListSetSearch = () => {
   const [setNames, setSetNames] = useState<Record<string, string>>({});
   const [sortConfig, setSortConfig] = useState<SortConfig>({ column: 'collector_number', direction: 'asc' });
   const [expandedSets, setExpandedSets] = useState<Set<string>>(new Set());
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [isUpdating, setIsUpdating] = useState(false);
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibility>({
     colors: true,
@@ -415,6 +417,30 @@ const ListSetSearch = () => {
     });
   };
 
+  const toggleAllSetsInGroup = (groupName: string, groupSets: SetData[]) => {
+    setExpandedGroups(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(groupName)) {
+        newSet.delete(groupName);
+        // Hide all sets in the group
+        setExpandedSets(prevSets => {
+          const newSets = new Set(prevSets);
+          groupSets.forEach(set => newSets.delete(set.setCode));
+          return newSets;
+        });
+      } else {
+        newSet.add(groupName);
+        // Show all sets in the group
+        setExpandedSets(prevSets => {
+          const newSets = new Set(prevSets);
+          groupSets.forEach(set => newSets.add(set.setCode));
+          return newSets;
+        });
+      }
+      return newSet;
+    });
+  };
+
   const getGroupedSets = () => {
     if (customGroups.length === 0) return null;
 
@@ -445,15 +471,44 @@ const ListSetSearch = () => {
       }
     });
 
+    // Filter out empty groups
+    const nonEmptyGroupedSets: { [key: string]: SetData[] } = {};
+    Object.entries(groupedSets).forEach(([groupName, sets]) => {
+      if (sets.length > 0) {
+        nonEmptyGroupedSets[groupName] = sets;
+      }
+    });
+
     // Sort sets within each group by card count
-    Object.keys(groupedSets).forEach(groupName => {
-      groupedSets[groupName].sort((a, b) => b.cardCount - a.cardCount);
+    Object.keys(nonEmptyGroupedSets).forEach(groupName => {
+      nonEmptyGroupedSets[groupName].sort((a, b) => b.cardCount - a.cardCount);
     });
 
     // Sort ungrouped sets by card count
     ungroupedSets.sort((a, b) => b.cardCount - a.cardCount);
 
-    return { groupedSets, ungroupedSets };
+    // Natural sort comparison function
+    const naturalCompare = (a: string, b: string) => {
+      const ax: any[] = [], bx: any[] = [];
+      a.replace(/(\d+)|(\D+)/g, (_, $1, $2) => { ax.push([$1 || Infinity, $2 || '']); return ''; });
+      b.replace(/(\d+)|(\D+)/g, (_, $1, $2) => { bx.push([$1 || Infinity, $2 || '']); return ''; });
+      while (ax.length && bx.length) {
+        const an = ax.shift();
+        const bn = bx.shift();
+        const nn = (an[0] - bn[0]) || an[1].localeCompare(bn[1]);
+        if (nn) return nn;
+      }
+      return ax.length - bx.length;
+    };
+
+    // Sort group names naturally
+    const sortedGroupNames = Object.keys(nonEmptyGroupedSets).sort(naturalCompare);
+    const sortedGroupedSets: { [key: string]: SetData[] } = {};
+    sortedGroupNames.forEach(groupName => {
+      sortedGroupedSets[groupName] = nonEmptyGroupedSets[groupName];
+    });
+
+    return { groupedSets: sortedGroupedSets, ungroupedSets };
   };
 
   const renderSetGroups = () => {
@@ -464,8 +519,32 @@ const ListSetSearch = () => {
       <>
         {Object.entries(groupedData.groupedSets).map(([groupName, groupSets]) => (
           <div key={groupName} className={styles.setGroup}>
-            <h2>{groupName}</h2>
-            {groupSets.map(set => (
+            <div className={styles.groupHeader}>
+              <h2 
+                className={styles.groupName}
+                onClick={() => setExpandedGroups(prev => {
+                  const newSet = new Set(prev);
+                  if (newSet.has(groupName)) {
+                    newSet.delete(groupName);
+                  } else {
+                    newSet.add(groupName);
+                  }
+                  return newSet;
+                })}
+              >
+                {groupName}
+                <span className={styles.expandIcon}>
+                  {expandedGroups.has(groupName) ? '▼' : '▶'}
+                </span>
+              </h2>
+              <button 
+                className={styles.expandAllButton}
+                onClick={() => toggleAllSetsInGroup(groupName, groupSets)}
+              >
+                {expandedGroups.has(groupName) ? 'Hide All' : 'Expand All'}
+              </button>
+            </div>
+            {expandedGroups.has(groupName) && groupSets.map(set => (
               <div key={set.setCode} className={styles.setSection}>
                 <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
                   <div className={styles.setInfo}>
@@ -654,6 +733,53 @@ const ListSetSearch = () => {
       return;
     }
     setShowGroupedSets(!showGroupedSets);
+  };
+
+  const handleSaveList = async () => {
+    if (!selectedList) return;
+
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      // Get the exact card names from the found cards in the table
+      const exactCardNames = new Map<string, string>();
+      foundCards.forEach(card => {
+        exactCardNames.set(card.name.toLowerCase(), card.name);
+      });
+
+      // Update the list with exact card names from the table
+      const updatedList = {
+        ...selectedList,
+        cards: selectedList.cards.map(card => {
+          const exactName = exactCardNames.get(card.name.toLowerCase());
+          if (exactName) {
+            return {
+              ...card,
+              name: exactName
+            };
+          }
+          return card;
+        })
+      };
+
+      const { error } = await supabase
+        .from('lists')
+        .update({
+          name: updatedList.name,
+          cards: updatedList.cards
+        })
+        .eq('id', updatedList.id);
+
+      if (error) throw error;
+
+      setSelectedList(updatedList);
+      setShowSaveModal(false);
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
