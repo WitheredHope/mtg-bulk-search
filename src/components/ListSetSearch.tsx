@@ -72,12 +72,15 @@ const ListSetSearch = () => {
   const [customGroups, setCustomGroups] = useState<any[]>([]);
   const [showGroupedSets, setShowGroupedSets] = useState(false);
   const [selectedRarities, setSelectedRarities] = useState<Set<Rarity>>(new Set(['common', 'uncommon', 'rare', 'mythic', 'timeshifted']));
+  const [showDuplicates, setShowDuplicates] = useState(true);
   const [previewCard, setPreviewCard] = useState<{
     name: string;
     setCode: string;
     collectorNumber: string;
     position: { x: number; y: number };
   } | null>(null);
+  const [showColorGroups, setShowColorGroups] = useState(false);
+  const [allExpanded, setAllExpanded] = useState(false);
   const navigate = useNavigate();
 
   const typeOrder: { [key: string]: number } = {
@@ -155,6 +158,7 @@ const ListSetSearch = () => {
     setIsLoading(true);
     setError(null);
     setShowGroupedSets(false);
+    setShowColorGroups(false);
 
     try {
       const cardNames = selectedList.cards.map(card => card.name);
@@ -339,59 +343,75 @@ const ListSetSearch = () => {
   };
 
   const getSortedCards = (cards: { card: CardData; printing: SetPrinting }[]) => {
-    return [...cards].sort((a, b) => {
-      let aValue: any;
-      let bValue: any;
-
-      if (sortConfig.column === 'name' || sortConfig.column === 'quantity' || sortConfig.column === 'type_line' || sortConfig.column === 'colors' || sortConfig.column === 'mana_cost') {
-        aValue = a.card[sortConfig.column];
-        bValue = b.card[sortConfig.column];
-      } else {
-        aValue = a.printing[sortConfig.column];
-        bValue = b.printing[sortConfig.column];
-      }
-
-      if (sortConfig.column === 'collector_number') {
-        const aNum = parseInt(aValue as string);
-        const bNum = parseInt(bValue as string);
-        
-        if (aNum === bNum) {
-          return (aValue as string).localeCompare(bValue as string);
+    const seenCardNames = new Set<string>();
+    
+    return [...cards]
+      .filter(({ card, printing }) => {
+        if (!selectedRarities.has(printing.rarity.toLowerCase() as Rarity)) {
+          return false;
         }
-        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
-      }
+        if (!showDuplicates) {
+          const cardNameLower = card.name.toLowerCase();
+          if (seenCardNames.has(cardNameLower)) {
+            return false;
+          }
+          seenCardNames.add(cardNameLower);
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
 
-      if (sortConfig.column === 'colors') {
-        const aColors = a.card.colors || [];
-        const bColors = b.card.colors || [];
-        return sortConfig.direction === 'asc' 
-          ? aColors.length - bColors.length 
-          : bColors.length - aColors.length;
-      }
+        if (sortConfig.column === 'name' || sortConfig.column === 'quantity' || sortConfig.column === 'type_line' || sortConfig.column === 'colors' || sortConfig.column === 'mana_cost') {
+          aValue = a.card[sortConfig.column];
+          bValue = b.card[sortConfig.column];
+        } else {
+          aValue = a.printing[sortConfig.column];
+          bValue = b.printing[sortConfig.column];
+        }
 
-      if (sortConfig.column === 'type_line') {
-        const aType = getPrimaryType(a.card.type_line);
-        const bType = getPrimaryType(b.card.type_line);
-        return sortConfig.direction === 'asc' 
-          ? aType.localeCompare(bType)
-          : bType.localeCompare(aType);
-      }
+        if (sortConfig.column === 'collector_number') {
+          const aNum = parseInt(aValue as string);
+          const bNum = parseInt(bValue as string);
+          
+          if (aNum === bNum) {
+            return (aValue as string).localeCompare(bValue as string);
+          }
+          return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+        }
 
-      if (sortConfig.column === 'rarity') {
-        const rarityOrder = { common: 0, uncommon: 1, rare: 2, mythic: 3, timeshifted: 4 };
-        const aRarity = rarityOrder[a.printing.rarity.toLowerCase() as Rarity] || 0;
-        const bRarity = rarityOrder[b.printing.rarity.toLowerCase() as Rarity] || 0;
-        return sortConfig.direction === 'asc' ? aRarity - bRarity : bRarity - aRarity;
-      }
+        if (sortConfig.column === 'colors') {
+          const aColors = a.card.colors || [];
+          const bColors = b.card.colors || [];
+          return sortConfig.direction === 'asc' 
+            ? aColors.length - bColors.length 
+            : bColors.length - aColors.length;
+        }
 
-      if (aValue === bValue) return 0;
-      if (aValue === null || aValue === undefined) return 1;
-      if (bValue === null || bValue === undefined) return -1;
+        if (sortConfig.column === 'type_line') {
+          const aType = getPrimaryType(a.card.type_line);
+          const bType = getPrimaryType(b.card.type_line);
+          return sortConfig.direction === 'asc' 
+            ? aType.localeCompare(bType)
+            : bType.localeCompare(aType);
+        }
 
-      return sortConfig.direction === 'asc'
-        ? String(aValue).localeCompare(String(bValue))
-        : String(bValue).localeCompare(String(aValue));
-    }).filter(card => selectedRarities.has(card.printing.rarity.toLowerCase() as Rarity));
+        if (sortConfig.column === 'rarity') {
+          const rarityOrder = { common: 0, uncommon: 1, rare: 2, mythic: 3, timeshifted: 4 };
+          const aRarity = rarityOrder[a.printing.rarity.toLowerCase() as Rarity] || 0;
+          const bRarity = rarityOrder[b.printing.rarity.toLowerCase() as Rarity] || 0;
+          return sortConfig.direction === 'asc' ? aRarity - bRarity : bRarity - aRarity;
+        }
+
+        if (aValue === bValue) return 0;
+        if (aValue === null || aValue === undefined) return 1;
+        if (bValue === null || bValue === undefined) return -1;
+
+        return sortConfig.direction === 'asc'
+          ? String(aValue).localeCompare(String(bValue))
+          : String(bValue).localeCompare(String(aValue));
+      });
   };
 
   const toggleColumnVisibility = (column: keyof ColumnVisibility) => {
@@ -509,6 +529,104 @@ const ListSetSearch = () => {
     });
 
     return { groupedSets: sortedGroupedSets, ungroupedSets };
+  };
+
+  const getColorGroup = (colors: string[]): string => {
+    if (colors.length === 0) return 'Colorless';
+    if (colors.length > 1) return 'Multicolored';
+    const colorMap: { [key: string]: string } = {
+      W: 'White',
+      U: 'Blue',
+      B: 'Black',
+      R: 'Red',
+      G: 'Green'
+    };
+    return colorMap[colors[0]] || 'Colorless';
+  };
+
+  const renderColorGroups = () => {
+    const colorOrder = ['White', 'Blue', 'Black', 'Red', 'Green', 'Multicolored', 'Colorless'];
+    const colorGroups: { [key: string]: { card: CardData; printing: SetPrinting }[] } = {};
+
+    // Initialize color groups
+    colorOrder.forEach(color => {
+      colorGroups[color] = [];
+    });
+
+    // Group cards by color
+    allSets.forEach(set => {
+      set.cards.forEach(({ card, printing }) => {
+        if (selectedRarities.has(printing.rarity.toLowerCase() as Rarity)) {
+          const colorGroup = getColorGroup(card.colors);
+          colorGroups[colorGroup].push({ card, printing });
+        }
+      });
+    });
+
+    return (
+      <>
+        {colorOrder.map(color => {
+          const cards = colorGroups[color];
+          if (cards.length === 0) return null;
+
+          return (
+            <div key={color} className={styles.setSection}>
+              <div className={styles.setHeader} onClick={() => toggleSet(color)}>
+                <div className={styles.setInfo}>
+                  <span className={styles.setName}>{color}</span>
+                  <span className={styles.cardCount}>({cards.length} cards)</span>
+                </div>
+                <span className={styles.expandIcon}>
+                  {expandedSets.has(color) ? '▼' : '▶'}
+                </span>
+              </div>
+              <div className={`${styles.setTableContainer} ${expandedSets.has(color) ? styles.expanded : ''}`}>
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th onClick={() => handleSort('quantity')}>Quantity</th>
+                      <th onClick={() => handleSort('name')}>Name</th>
+                      <th className={getColumnClass('type')} onClick={() => handleSort('type_line')}>Type</th>
+                      <th className={getColumnClass('colors')} onClick={() => handleSort('colors')}>Colors</th>
+                      <th className={getColumnClass('rarity')} onClick={() => handleSort('rarity')}>Rarity</th>
+                      <th className={getColumnClass('collectorNumber')} onClick={() => handleSort('collector_number')}>Collector #</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {getSortedCards(cards).map(({ card, printing }, index) => (
+                      <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
+                        <td>{card.quantity}</td>
+                        <td 
+                          className={styles.cardName}
+                          onMouseEnter={(e) => handleCardHover(e, card, printing)}
+                          onMouseLeave={handleCardLeave}
+                        >
+                          {card.name}
+                        </td>
+                        <td className={getColumnClass('type')}>{card.type_line}</td>
+                        <td className={getColumnClass('colors')}>
+                          {getSortedColors(card.colors).map(color => (
+                            <span key={color} className={styles.colorSymbol}>
+                              {getColorSymbol(color)}
+                            </span>
+                          ))}
+                        </td>
+                        <td className={getColumnClass('rarity')}>
+                          <span className={getRarityClass(printing.rarity)}>
+                            {printing.rarity.charAt(0).toUpperCase()}
+                          </span>
+                        </td>
+                        <td className={getColumnClass('collectorNumber')}>{printing.collector_number}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+      </>
+    );
   };
 
   const renderSetGroups = () => {
@@ -741,7 +859,7 @@ const ListSetSearch = () => {
       return;
     }
     if (allSets.length === 0) {
-      setError('Please load a list first by clicking "View All Sets"');
+      setError('Please load a list first by clicking "Group by Set"');
       return;
     }
     setShowGroupedSets(!showGroupedSets);
@@ -782,6 +900,39 @@ const ListSetSearch = () => {
 
   const handleCardLeave = () => {
     setPreviewCard(null);
+  };
+
+  const handleExpandAll = () => {
+    if (showColorGroups) {
+      // For color groups, we need to expand all color sections
+      const allColors = ['White', 'Blue', 'Black', 'Red', 'Green', 'Multicolored', 'Colorless'];
+      setExpandedSets(new Set(allColors));
+    } else if (showGroupedSets) {
+      // For grouped sets, we need to expand all set groups and their sets
+      const groupedData = getGroupedSets();
+      if (groupedData) {
+        const allGroupNames = Object.keys(groupedData.groupedSets);
+        setExpandedGroups(new Set(allGroupNames));
+        
+        // Get all set codes from both grouped and ungrouped sets
+        const allSetCodes = [
+          ...Object.values(groupedData.groupedSets).flatMap(sets => sets.map(set => set.setCode)),
+          ...groupedData.ungroupedSets.map(set => set.setCode)
+        ];
+        setExpandedSets(new Set(allSetCodes));
+      }
+    } else {
+      // For regular set view, we need to expand all sets
+      const allSetCodes = allSets.map(set => set.setCode);
+      setExpandedSets(new Set(allSetCodes));
+    }
+    setAllExpanded(!allExpanded);
+  };
+
+  const handleCollapseAll = () => {
+    setExpandedSets(new Set());
+    setExpandedGroups(new Set());
+    setAllExpanded(false);
   };
 
   return (
@@ -853,6 +1004,16 @@ const ListSetSearch = () => {
               </label>
             ))}
           </div>
+          <div className={styles.duplicateFilter}>
+            <label>
+              <input
+                type="checkbox"
+                checked={showDuplicates}
+                onChange={() => setShowDuplicates(!showDuplicates)}
+              />
+              Show Duplicates
+            </label>
+          </div>
         </div>
       </div>
       <div className={styles.navbar}>
@@ -885,7 +1046,7 @@ const ListSetSearch = () => {
               onClick={handleViewAllSets}
               disabled={isLoading || !selectedList}
             >
-              View All Sets
+              Group by Set
             </button>
             <button 
               type="button" 
@@ -894,6 +1055,29 @@ const ListSetSearch = () => {
               disabled={isLoading || !selectedList || allSets.length === 0}
             >
               {showGroupedSets ? 'Ungroup Sets' : 'Group Sets'}
+            </button>
+            <button 
+              type="button" 
+              className={styles.submitButton} 
+              onClick={() => {
+                if (allSets.length === 0) {
+                  handleViewAllSets();
+                }
+                setShowColorGroups(!showColorGroups);
+                setShowGroupedSets(false);
+                setAllExpanded(false);
+              }}
+              disabled={isLoading || !selectedList}
+            >
+              {showColorGroups ? 'Ungroup Colors' : 'Group by Color'}
+            </button>
+            <button 
+              type="button" 
+              className={styles.submitButton} 
+              onClick={allExpanded ? handleCollapseAll : handleExpandAll}
+              disabled={isLoading || !selectedList || allSets.length === 0}
+            >
+              {allExpanded ? 'Hide All' : 'Expand All'}
             </button>
           </div>
         </form>
@@ -948,97 +1132,99 @@ const ListSetSearch = () => {
       )}
 
       <div className={styles.setsContainer}>
-        {showGroupedSets && customGroups.length > 0 ? renderSetGroups() : (
-          allSets.map(set => (
-            <div key={set.setCode} className={styles.setSection}>
-              <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
-                <div className={styles.setInfo}>
-                  <span className={styles.setCode}>{set.setCode}</span>
-                  <span className={styles.setName}>{set.setName}</span>
-                  <span className={styles.cardCount}>({set.cardCount} cards)</span>
+        {showColorGroups ? renderColorGroups() : (
+          showGroupedSets && customGroups.length > 0 ? renderSetGroups() : (
+            allSets.map(set => (
+              <div key={set.setCode} className={styles.setSection}>
+                <div className={styles.setHeader} onClick={() => toggleSet(set.setCode)}>
+                  <div className={styles.setInfo}>
+                    <span className={styles.setCode}>{set.setCode}</span>
+                    <span className={styles.setName}>{set.setName}</span>
+                    <span className={styles.cardCount}>({set.cardCount} cards)</span>
+                  </div>
+                  <span className={styles.expandIcon}>
+                    {expandedSets.has(set.setCode) ? '▼' : '▶'}
+                  </span>
                 </div>
-                <span className={styles.expandIcon}>
-                  {expandedSets.has(set.setCode) ? '▼' : '▶'}
-                </span>
-              </div>
-              <div className={`${styles.setTableContainer} ${expandedSets.has(set.setCode) ? styles.expanded : ''}`}>
-                <table className={styles.table}>
-                  <thead>
-                    <tr>
-                      <th 
-                        onClick={() => handleSort('quantity')}
-                        className={sortConfig.column === 'quantity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
-                      >
-                        Quantity
-                      </th>
-                      <th 
-                        onClick={() => handleSort('name')}
-                        className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
-                      >
-                        Name
-                      </th>
-                      <th 
-                        className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                        onClick={() => handleSort('type_line')}
-                      >
-                        Type
-                      </th>
-                      <th 
-                        className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                        onClick={() => handleSort('colors')}
-                      >
-                        Colors
-                      </th>
-                      <th 
-                        className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                        onClick={() => handleSort('rarity')}
-                      >
-                        Rarity
-                      </th>
-                      <th 
-                        className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                        onClick={() => handleSort('collector_number')}
-                      >
-                        Collector #
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {getSortedCards(set.cards).map(({ card, printing }, index) => (
-                      <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
-                        <td>{card.quantity}</td>
-                        <td 
-                          className={styles.cardName}
-                          onMouseEnter={(e) => handleCardHover(e, card, printing)}
-                          onMouseLeave={handleCardLeave}
+                <div className={`${styles.setTableContainer} ${expandedSets.has(set.setCode) ? styles.expanded : ''}`}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        <th 
+                          onClick={() => handleSort('quantity')}
+                          className={sortConfig.column === 'quantity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
                         >
-                          {card.name}
-                        </td>
-                        <td className={getColumnClass('type')}>
-                          {card.type_line}
-                        </td>
-                        <td className={getColumnClass('colors')}>
-                          {getSortedColors(card.colors).map(color => (
-                            <span key={color} className={styles.colorSymbol}>
-                              {getColorSymbol(color)}
-                            </span>
-                          ))}
-                        </td>
-                        <td className={getColumnClass('rarity')}>
-                          <span className={getRarityClass(printing.rarity)}>
-                            {printing.rarity.charAt(0).toUpperCase()}
-                          </span>
-                        </td>
-                        <td className={getColumnClass('collectorNumber')}>
-                          {printing.collector_number}
-                        </td>
+                          Quantity
+                        </th>
+                        <th 
+                          onClick={() => handleSort('name')}
+                          className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
+                        >
+                          Name
+                        </th>
+                        <th 
+                          className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('type_line')}
+                        >
+                          Type
+                        </th>
+                        <th 
+                          className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('colors')}
+                        >
+                          Colors
+                        </th>
+                        <th 
+                          className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('rarity')}
+                        >
+                          Rarity
+                        </th>
+                        <th 
+                          className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
+                          onClick={() => handleSort('collector_number')}
+                        >
+                          Collector #
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {getSortedCards(set.cards).map(({ card, printing }, index) => (
+                        <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
+                          <td>{card.quantity}</td>
+                          <td 
+                            className={styles.cardName}
+                            onMouseEnter={(e) => handleCardHover(e, card, printing)}
+                            onMouseLeave={handleCardLeave}
+                          >
+                            {card.name}
+                          </td>
+                          <td className={getColumnClass('type')}>
+                            {card.type_line}
+                          </td>
+                          <td className={getColumnClass('colors')}>
+                            {getSortedColors(card.colors).map(color => (
+                              <span key={color} className={styles.colorSymbol}>
+                                {getColorSymbol(color)}
+                              </span>
+                            ))}
+                          </td>
+                          <td className={getColumnClass('rarity')}>
+                            <span className={getRarityClass(printing.rarity)}>
+                              {printing.rarity.charAt(0).toUpperCase()}
+                            </span>
+                          </td>
+                          <td className={getColumnClass('collectorNumber')}>
+                            {printing.collector_number}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
-          ))
+            ))
+          )
         )}
       </div>
       {previewCard && (
