@@ -1351,4 +1351,175 @@
   cursor: pointer;
   text-decoration: underline;
   text-decoration-style: dotted;
+}
+
+.quantityCell {
+  position: relative;
+  padding: 8px;
+  text-align: center;
+}
+
+.quantityCell.clickable {
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.05);
+  transition: background-color 0.2s;
+}
+
+.quantityCell.clickable:hover {
+  background-color: rgba(0, 0, 0, 0.1);
+}
+
+.quantityContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.editIcon {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.modalOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  min-width: 300px;
+}
+
+.modal h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.quantityInput {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 16px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.modalButtons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.modalButtons button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.modalButtons .submitButton {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.modalButtons .cancelButton {
+  background-color: #f44336;
+  color: white;
+}
+
+.foundCardsSection {
+  margin-top: 32px;
+  padding-top: 32px;
+  border-top: 1px solid #ddd;
+}
+
+.foundCardsSection h2 {
+  margin-bottom: 16px;
+  color: #333;
+}
+
+.foundCardsHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.toggleButton {
+  padding: 6px 12px;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+}
+
+.toggleButton:hover {
+  background-color: #e0e0e0;
+}
+
+.foundCardsSection .setSection {
+  margin-top: 0;
+}
+
+.foundCardsSection .table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.foundCardsSection .table th,
+.foundCardsSection .table td {
+  padding: 8px;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-bottom: 1px solid #dee2e6;
+  background-color: #fff;
+}
+
+.foundCardsSection .table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+}
+
+.foundCardsSection .table tr:hover {
+  background-color: #f8f9fa;
+}
+
+.foundCardsSection .cardName {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.removeButton {
+  padding: 4px 8px;
+  background-color: #dc3545;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.removeButton:hover {
+  background-color: #c82333;
 } 

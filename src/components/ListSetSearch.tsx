@@ -47,10 +47,15 @@ interface ColumnVisibility {
   type: boolean;
 }
 
+interface FoundCard {
+  name: string;
+  quantity: number;
+}
+
 const ListSetSearch = () => {
   const location = useLocation();
   const [selectedList, setSelectedList] = useState<CardList | null>(null);
-  const [foundCards, setFoundCards] = useState<CardData[]>([]);
+  const [foundCards, setFoundCards] = useState<FoundCard[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedLists, setSavedLists] = useState<CardList[]>([]);
@@ -81,6 +86,8 @@ const ListSetSearch = () => {
   } | null>(null);
   const [showColorGroups, setShowColorGroups] = useState(false);
   const [allExpanded, setAllExpanded] = useState(false);
+  const [editingCard, setEditingCard] = useState<{ name: string; quantity: number } | null>(null);
+  const [showFoundCards, setShowFoundCards] = useState(true);
   const navigate = useNavigate();
 
   const typeOrder: { [key: string]: number } = {
@@ -356,6 +363,11 @@ const ListSetSearch = () => {
             return false;
           }
           seenCardNames.add(cardNameLower);
+        }
+        // Filter out cards that have been found in sufficient quantity
+        const foundCard = foundCards.find(fc => fc.name.toLowerCase() === card.name.toLowerCase());
+        if (foundCard && foundCard.quantity >= card.quantity) {
+          return false;
         }
         return true;
       })
@@ -719,7 +731,15 @@ const ListSetSearch = () => {
                     <tbody>
                       {getSortedCards(set.cards).map(({ card, printing }, index) => (
                         <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
-                          <td>{card.quantity}</td>
+                          <td 
+                            onClick={() => handleQuantityClick(card)}
+                            className={`${styles.quantityCell} ${styles.clickable}`}
+                          >
+                            <div className={styles.quantityContent}>
+                              {card.quantity}
+                              <span className={styles.editIcon}>✎</span>
+                            </div>
+                          </td>
                           <td 
                             className={styles.cardName}
                             onMouseEnter={(e) => handleCardHover(e, card, printing)}
@@ -814,7 +834,15 @@ const ListSetSearch = () => {
                     <tbody>
                       {getSortedCards(set.cards).map(({ card, printing }, index) => (
                         <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
-                          <td>{card.quantity}</td>
+                          <td 
+                            onClick={() => handleQuantityClick(card)}
+                            className={`${styles.quantityCell} ${styles.clickable}`}
+                          >
+                            <div className={styles.quantityContent}>
+                              {card.quantity}
+                              <span className={styles.editIcon}>✎</span>
+                            </div>
+                          </td>
                           <td 
                             className={styles.cardName}
                             onMouseEnter={(e) => handleCardHover(e, card, printing)}
@@ -933,6 +961,26 @@ const ListSetSearch = () => {
     setExpandedSets(new Set());
     setExpandedGroups(new Set());
     setAllExpanded(false);
+  };
+
+  const handleQuantityClick = (card: CardData) => {
+    setEditingCard({ name: card.name, quantity: 0 });
+  };
+
+  const handleQuantitySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingCard && editingCard.quantity > 0) {
+      setFoundCards(prev => {
+        const existingIndex = prev.findIndex(fc => fc.name.toLowerCase() === editingCard.name.toLowerCase());
+        if (existingIndex >= 0) {
+          const newFoundCards = [...prev];
+          newFoundCards[existingIndex] = { ...newFoundCards[existingIndex], quantity: editingCard.quantity };
+          return newFoundCards;
+        }
+        return [...prev, { name: editingCard.name, quantity: editingCard.quantity }];
+      });
+      setEditingCard(null);
+    }
   };
 
   return (
@@ -1090,44 +1138,59 @@ const ListSetSearch = () => {
       )}
 
       {foundCards.length > 0 && (
-        <div className={styles.results}>
-          <h2>Cards Found in Set</h2>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Quantity</th>
-                <th>Name</th>
-                <th>Set</th>
-                <th>Colors</th>
-                <th>Mana Cost</th>
-                <th>Type</th>
-                <th>Rarity</th>
-              </tr>
-            </thead>
-            <tbody>
-              {foundCards.map((card, index) => (
-                <tr key={index} className={getRowColorClass(card.colors)}>
-                  <td>{card.quantity}</td>
-                  <td>{card.name}</td>
-                  <td>
-                    <span className={`${styles.setCode} ${getRarityClass(card.printings[0].rarity)}`}>
-                      {card.printings[0].set}
-                    </span>
-                  </td>
-                  <td>
-                    {getSortedColors(card.colors).map(color => (
-                      <span key={color} className={styles.colorSymbol}>
-                        {getColorSymbol(color)}
-                      </span>
-                    ))}
-                  </td>
-                  <td>{card.mana_cost}</td>
-                  <td>{card.type_line}</td>
-                  <td>{card.printings[0].rarity}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.foundCardsSection}>
+          <div className={styles.foundCardsHeader}>
+            <h2>Found Cards</h2>
+            <button 
+              onClick={() => setShowFoundCards(!showFoundCards)}
+              className={styles.toggleButton}
+            >
+              {showFoundCards ? 'Hide' : 'Show'}
+            </button>
+          </div>
+          {showFoundCards && (
+            <div className={styles.setSection}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '40%' }}>Name</th>
+                    <th style={{ width: '15%' }}>Found Quantity</th>
+                    <th style={{ width: '15%' }}>Total Quantity</th>
+                    <th style={{ width: '15%' }}>Type</th>
+                    <th style={{ width: '15%' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {foundCards.map((foundCard, index) => {
+                    const cardData = allSets
+                      .flatMap(set => set.cards)
+                      .find(({ card }) => card.name.toLowerCase() === foundCard.name.toLowerCase());
+                    
+                    if (!cardData) return null;
+                    
+                    return (
+                      <tr key={`${foundCard.name}-${index}`}>
+                        <td className={styles.cardName}>{foundCard.name}</td>
+                        <td>{foundCard.quantity}</td>
+                        <td>{cardData.card.quantity}</td>
+                        <td>{cardData.card.type_line}</td>
+                        <td>
+                          <button 
+                            className={styles.removeButton}
+                            onClick={() => {
+                              setFoundCards(prev => prev.filter(card => card.name !== foundCard.name));
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -1156,42 +1219,25 @@ const ListSetSearch = () => {
                         >
                           Quantity
                         </th>
-                        <th 
-                          onClick={() => handleSort('name')}
-                          className={sortConfig.column === 'name' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}
-                        >
-                          Name
-                        </th>
-                        <th 
-                          className={`${getColumnClass('type')} ${sortConfig.column === 'type_line' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                          onClick={() => handleSort('type_line')}
-                        >
-                          Type
-                        </th>
-                        <th 
-                          className={`${getColumnClass('colors')} ${sortConfig.column === 'colors' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                          onClick={() => handleSort('colors')}
-                        >
-                          Colors
-                        </th>
-                        <th 
-                          className={`${getColumnClass('rarity')} ${sortConfig.column === 'rarity' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                          onClick={() => handleSort('rarity')}
-                        >
-                          Rarity
-                        </th>
-                        <th 
-                          className={`${getColumnClass('collectorNumber')} ${sortConfig.column === 'collector_number' ? (sortConfig.direction === 'asc' ? styles['sorted-asc'] : styles['sorted-desc']) : ''}`}
-                          onClick={() => handleSort('collector_number')}
-                        >
-                          Collector #
-                        </th>
+                        <th onClick={() => handleSort('name')}>Name</th>
+                        <th className={getColumnClass('type')} onClick={() => handleSort('type_line')}>Type</th>
+                        <th className={getColumnClass('colors')} onClick={() => handleSort('colors')}>Colors</th>
+                        <th className={getColumnClass('rarity')} onClick={() => handleSort('rarity')}>Rarity</th>
+                        <th className={getColumnClass('collectorNumber')} onClick={() => handleSort('collector_number')}>Collector #</th>
                       </tr>
                     </thead>
                     <tbody>
                       {getSortedCards(set.cards).map(({ card, printing }, index) => (
                         <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
-                          <td>{card.quantity}</td>
+                          <td 
+                            onClick={() => handleQuantityClick(card)}
+                            className={`${styles.quantityCell} ${styles.clickable}`}
+                          >
+                            <div className={styles.quantityContent}>
+                              {card.quantity}
+                              <span className={styles.editIcon}>✎</span>
+                            </div>
+                          </td>
                           <td 
                             className={styles.cardName}
                             onMouseEnter={(e) => handleCardHover(e, card, printing)}
@@ -1235,6 +1281,28 @@ const ListSetSearch = () => {
           isVisible={true}
           position={previewCard.position}
         />
+      )}
+
+      {editingCard && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <h3>Enter Quantity for {editingCard.name}</h3>
+            <form onSubmit={handleQuantitySubmit}>
+              <input
+                type="number"
+                min="1"
+                value={editingCard.quantity}
+                onChange={(e) => setEditingCard({ ...editingCard, quantity: parseInt(e.target.value) || 0 })}
+                autoFocus
+                className={styles.quantityInput}
+              />
+              <div className={styles.modalButtons}>
+                <button type="submit" className={styles.submitButton}>Add</button>
+                <button type="button" onClick={() => setEditingCard(null)} className={styles.cancelButton}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
