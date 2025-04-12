@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { searchCards } from '../services/scryfall';
-import { getCardLists, CardList } from '../services/cardLists';
+import { searchCards, isDigitalOnlySet } from '../services/scryfall';
+import { getCardLists, CardList, saveCardList } from '../services/cardLists';
 import { supabase } from '../services/supabase';
 import styles from './CardSearch.module.css';
 import { useLocation, useNavigate } from 'react-router-dom';
+import CardPreview from './CardPreview';
 
 interface SetPrinting {
   set: string;
@@ -70,7 +71,26 @@ const ListSetSearch = () => {
   const [showColumnDropdown, setShowColumnDropdown] = useState(false);
   const [customGroups, setCustomGroups] = useState<any[]>([]);
   const [showGroupedSets, setShowGroupedSets] = useState(false);
+  const [selectedRarities, setSelectedRarities] = useState<Set<Rarity>>(new Set(['common', 'uncommon', 'rare', 'mythic', 'timeshifted']));
+  const [previewCard, setPreviewCard] = useState<{
+    name: string;
+    setCode: string;
+    collectorNumber: string;
+    position: { x: number; y: number };
+  } | null>(null);
   const navigate = useNavigate();
+
+  const typeOrder: { [key: string]: number } = {
+    'Creature': 0,
+    'Planeswalker': 1,
+    'Battle': 2,
+    'Enchantment': 3,
+    'Instant': 4,
+    'Sorcery': 5,
+    'Kindred': 6,
+    'Artifact': 7,
+    'Land': 8
+  };
 
   useEffect(() => {
     checkAuth();
@@ -170,29 +190,47 @@ const ListSetSearch = () => {
 
       setSetNames(setNameMap);
 
-      // Convert the map to an array of SetData objects and sort cards by collector number
-      const setsData: SetData[] = Array.from(setMap.entries()).map(([setCode, cardPrintings]) => {
-        // Sort cards by collector number
-        const sortedCardPrintings = [...cardPrintings].sort((a, b) => {
-          // Convert collector numbers to numbers if possible for proper numeric sorting
-          const aNum = parseInt(a.printing.collector_number, 10);
-          const bNum = parseInt(b.printing.collector_number, 10);
-          
-          if (!isNaN(aNum) && !isNaN(bNum)) {
-            return aNum - bNum;
-          }
-          
-          // Fallback to string comparison if not numeric
-          return a.printing.collector_number.localeCompare(b.printing.collector_number);
-        });
+      // Get all unique set codes
+      const setCodes = Array.from(setMap.keys());
+      
+      // Check which sets are digital
+      const digitalSetChecks = await Promise.all(
+        setCodes.map(async (setCode) => {
+          const isDigital = await isDigitalOnlySet(setCode);
+          return { setCode, isDigital };
+        })
+      );
 
-        return {
-          setCode,
-          setName: setNameMap[setCode] || setCode,
-          cardCount: uniqueCardCountMap.get(setCode)?.size || 0,
-          cards: sortedCardPrintings
-        };
-      });
+      // Filter out digital sets
+      const physicalSetCodes = digitalSetChecks
+        .filter(({ isDigital }) => !isDigital)
+        .map(({ setCode }) => setCode);
+
+      // Convert the map to an array of SetData objects and sort cards by collector number
+      const setsData: SetData[] = Array.from(setMap.entries())
+        .filter(([setCode]) => physicalSetCodes.includes(setCode))
+        .map(([setCode, cardPrintings]) => {
+          // Sort cards by collector number
+          const sortedCardPrintings = [...cardPrintings].sort((a, b) => {
+            // Convert collector numbers to numbers if possible for proper numeric sorting
+            const aNum = parseInt(a.printing.collector_number, 10);
+            const bNum = parseInt(b.printing.collector_number, 10);
+            
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              return aNum - bNum;
+            }
+            
+            // Fallback to string comparison if not numeric
+            return a.printing.collector_number.localeCompare(b.printing.collector_number);
+          });
+
+          return {
+            setCode,
+            setName: setNameMap[setCode] || setCode,
+            cardCount: uniqueCardCountMap.get(setCode)?.size || 0,
+            cards: sortedCardPrintings
+          };
+        });
 
       // Sort sets by card count in descending order
       setsData.sort((a, b) => b.cardCount - a.cardCount);
@@ -204,6 +242,29 @@ const ListSetSearch = () => {
       setIsLoading(false);
     }
   };
+
+  // Add a new function to calculate filtered card count
+  const getFilteredCardCount = (cards: { card: CardData; printing: SetPrinting }[]) => {
+    const uniqueCards = new Set<string>();
+    cards.forEach(({ card, printing }) => {
+      if (selectedRarities.has(printing.rarity.toLowerCase() as Rarity)) {
+        uniqueCards.add(card.name);
+      }
+    });
+    return uniqueCards.size;
+  };
+
+  // Add useEffect to update card counts when rarities change
+  useEffect(() => {
+    if (allSets.length > 0) {
+      setAllSets(prevSets => 
+        prevSets.map(set => ({
+          ...set,
+          cardCount: getFilteredCardCount(set.cards)
+        }))
+      );
+    }
+  }, [selectedRarities]);
 
   const getColorSymbol = (color: string) => {
     const colorMap: { [key: string]: string } = {
@@ -262,136 +323,75 @@ const ListSetSearch = () => {
     }));
   };
 
+  const getPrimaryType = (typeLine: string): string => {
+    const mainTypes = typeLine.split(' — ')[0].split(' ');
+    
+    if (mainTypes.includes('Creature')) return 'Creature';
+    if (mainTypes.includes('Land')) return 'Land';
+    if (mainTypes.includes('Artifact')) return 'Artifact';
+    
+    for (const type of mainTypes) {
+      if (typeOrder[type] !== undefined) {
+        return type;
+      }
+    }
+    return mainTypes[0];
+  };
+
   const getSortedCards = (cards: { card: CardData; printing: SetPrinting }[]) => {
     return [...cards].sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sortConfig.column) {
-        case 'name':
-          comparison = a.card.name.localeCompare(b.card.name);
-          break;
-        case 'quantity':
-          comparison = a.card.quantity - b.card.quantity;
-          break;
-        case 'collector_number':
-          const aNum = parseInt(a.printing.collector_number, 10);
-          const bNum = parseInt(b.printing.collector_number, 10);
-          if (!isNaN(aNum) && !isNaN(bNum)) {
-            comparison = aNum - bNum;
-          } else {
-            comparison = a.printing.collector_number.localeCompare(b.printing.collector_number);
-          }
-          break;
-        case 'type_line':
-          // Define type order
-          const typeOrder: { [key: string]: number } = {
-            'Creature': 0,
-            'Planeswalker': 1,
-            'Battle': 2,
-            'Enchantment': 3,
-            'Instant': 4,
-            'Sorcery': 5,
-            'Kindred': 6,
-            'Artifact': 7,
-            'Land': 8
-          };
+      let aValue: any;
+      let bValue: any;
 
-          // Helper function to get primary type
-          const getPrimaryType = (typeLine: string): string => {
-            // Split at " — " and take the first part
-            const mainTypes = typeLine.split(' — ')[0].split(' ');
-            
-            // Special cases that should take priority, in order of importance
-            if (mainTypes.includes('Creature')) return 'Creature';
-            if (mainTypes.includes('Land')) return 'Land';
-            if (mainTypes.includes('Artifact')) return 'Artifact';
-            
-            // For other cases, return the first type that matches our order
-            for (const type of mainTypes) {
-              if (typeOrder[type] !== undefined) {
-                return type;
-              }
-            }
-            return mainTypes[0]; // Fallback to first type if no match
-          };
-
-          const aPrimaryType = getPrimaryType(a.card.type_line);
-          const bPrimaryType = getPrimaryType(b.card.type_line);
-          
-          // Compare primary types
-          const aTypeOrder = typeOrder[aPrimaryType] ?? 999;
-          const bTypeOrder = typeOrder[bPrimaryType] ?? 999;
-          comparison = aTypeOrder - bTypeOrder;
-
-          // If same primary type, sort by full type line
-          if (comparison === 0) {
-            comparison = a.card.type_line.localeCompare(b.card.type_line);
-          }
-          break;
-        case 'colors':
-          // Define color order
-          const colorOrder: { [key: string]: number } = {
-            'W': 1,
-            'U': 2,
-            'B': 3,
-            'R': 4,
-            'G': 5
-          };
-
-          // Helper function to determine card's color category
-          const getColorCategory = (colors: string[], typeLine: string): number => {
-            // Check if it's a land
-            if (typeLine.toLowerCase().includes('land')) {
-              return 8; // Land Colorless
-            }
-            
-            // Check if it's an artifact
-            if (typeLine.toLowerCase().includes('artifact')) {
-              return 6; // Artifact Colorless
-            }
-
-            // Check if it's multicolored
-            if (colors.length > 1) {
-              return 7; // Multicolored
-            }
-
-            // Check if it's colorless
-            if (colors.length === 0) {
-              return 0; // Non-Artifact, Non-Land Colorless
-            }
-
-            // Return the color's position in the order
-            return colorOrder[colors[0]] || 0;
-          };
-
-          const aCategory = getColorCategory(a.card.colors, a.card.type_line);
-          const bCategory = getColorCategory(b.card.colors, b.card.type_line);
-          comparison = aCategory - bCategory;
-
-          // If same category, sort by color order
-          if (comparison === 0 && a.card.colors.length > 0 && b.card.colors.length > 0) {
-            comparison = colorOrder[a.card.colors[0]] - colorOrder[b.card.colors[0]];
-          }
-          break;
-        case 'mana_cost':
-          comparison = a.card.mana_cost.localeCompare(b.card.mana_cost);
-          break;
-        case 'rarity':
-          const rarityOrder: Record<Rarity, number> = {
-            common: 0,
-            uncommon: 1,
-            rare: 2,
-            mythic: 3,
-            timeshifted: 4
-          };
-          const aRarity = a.printing.rarity.toLowerCase() as Rarity;
-          const bRarity = b.printing.rarity.toLowerCase() as Rarity;
-          comparison = (rarityOrder[aRarity] || 0) - (rarityOrder[bRarity] || 0);
-          break;
+      if (sortConfig.column === 'name' || sortConfig.column === 'quantity' || sortConfig.column === 'type_line' || sortConfig.column === 'colors' || sortConfig.column === 'mana_cost') {
+        aValue = a.card[sortConfig.column];
+        bValue = b.card[sortConfig.column];
+      } else {
+        aValue = a.printing[sortConfig.column];
+        bValue = b.printing[sortConfig.column];
       }
 
-      return sortConfig.direction === 'asc' ? comparison : -comparison;
-    });
+      if (sortConfig.column === 'collector_number') {
+        const aNum = parseInt(aValue as string);
+        const bNum = parseInt(bValue as string);
+        
+        if (aNum === bNum) {
+          return (aValue as string).localeCompare(bValue as string);
+        }
+        return sortConfig.direction === 'asc' ? aNum - bNum : bNum - aNum;
+      }
+
+      if (sortConfig.column === 'colors') {
+        const aColors = a.card.colors || [];
+        const bColors = b.card.colors || [];
+        return sortConfig.direction === 'asc' 
+          ? aColors.length - bColors.length 
+          : bColors.length - aColors.length;
+      }
+
+      if (sortConfig.column === 'type_line') {
+        const aType = getPrimaryType(a.card.type_line);
+        const bType = getPrimaryType(b.card.type_line);
+        return sortConfig.direction === 'asc' 
+          ? aType.localeCompare(bType)
+          : bType.localeCompare(aType);
+      }
+
+      if (sortConfig.column === 'rarity') {
+        const rarityOrder = { common: 0, uncommon: 1, rare: 2, mythic: 3, timeshifted: 4 };
+        const aRarity = rarityOrder[a.printing.rarity.toLowerCase() as Rarity] || 0;
+        const bRarity = rarityOrder[b.printing.rarity.toLowerCase() as Rarity] || 0;
+        return sortConfig.direction === 'asc' ? aRarity - bRarity : bRarity - aRarity;
+      }
+
+      if (aValue === bValue) return 0;
+      if (aValue === null || aValue === undefined) return 1;
+      if (bValue === null || bValue === undefined) return -1;
+
+      return sortConfig.direction === 'asc'
+        ? String(aValue).localeCompare(String(bValue))
+        : String(bValue).localeCompare(String(aValue));
+    }).filter(card => selectedRarities.has(card.printing.rarity.toLowerCase() as Rarity));
   };
 
   const toggleColumnVisibility = (column: keyof ColumnVisibility) => {
@@ -602,7 +602,13 @@ const ListSetSearch = () => {
                       {getSortedCards(set.cards).map(({ card, printing }, index) => (
                         <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
                           <td>{card.quantity}</td>
-                          <td>{card.name}</td>
+                          <td 
+                            className={styles.cardName}
+                            onMouseEnter={(e) => handleCardHover(e, card, printing)}
+                            onMouseLeave={handleCardLeave}
+                          >
+                            {card.name}
+                          </td>
                           <td className={getColumnClass('type')}>
                             {card.type_line}
                           </td>
@@ -691,7 +697,13 @@ const ListSetSearch = () => {
                       {getSortedCards(set.cards).map(({ card, printing }, index) => (
                         <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
                           <td>{card.quantity}</td>
-                          <td>{card.name}</td>
+                          <td 
+                            className={styles.cardName}
+                            onMouseEnter={(e) => handleCardHover(e, card, printing)}
+                            onMouseLeave={handleCardLeave}
+                          >
+                            {card.name}
+                          </td>
                           <td className={getColumnClass('type')}>
                             {card.type_line}
                           </td>
@@ -737,53 +749,112 @@ const ListSetSearch = () => {
 
   const handleSaveList = async () => {
     if (!selectedList) return;
-
+    
     try {
-      setIsLoading(true);
-      setError(null);
-
-      // Get the exact card names from the found cards in the table
-      const exactCardNames = new Map<string, string>();
-      foundCards.forEach(card => {
-        exactCardNames.set(card.name.toLowerCase(), card.name);
-      });
-
-      // Update the list with exact card names from the table
-      const updatedList = {
-        ...selectedList,
-        cards: selectedList.cards.map(card => {
-          const exactName = exactCardNames.get(card.name.toLowerCase());
-          if (exactName) {
-            return {
-              ...card,
-              name: exactName
-            };
-          }
-          return card;
-        })
-      };
-
-      const { error } = await supabase
-        .from('lists')
-        .update({
-          name: updatedList.name,
-          cards: updatedList.cards
-        })
-        .eq('id', updatedList.id);
-
-      if (error) throw error;
-
-      setSelectedList(updatedList);
-      setShowSaveModal(false);
+      setIsUpdating(true);
+      const cardEntries = parseCardList(selectedList.cards);
+      await saveCardList(selectedList.name, cardEntries);
+      await loadSavedLists();
     } catch (error: any) {
-      setError(error.message);
+      console.error('Error saving list:', error);
+      setError(error.message || 'Failed to save the list. Please try again.');
     } finally {
-      setIsLoading(false);
+      setIsUpdating(false);
     }
+  };
+
+  const parseCardList = (cards: { name: string; quantity: number }[]): { name: string; quantity: number }[] => {
+    return cards.map(card => ({
+      name: card.name,
+      quantity: card.quantity
+    }));
+  };
+
+  const handleCardHover = (e: React.MouseEvent, card: CardData, printing: SetPrinting) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setPreviewCard({
+      name: card.name,
+      setCode: printing.set,
+      collectorNumber: printing.collector_number,
+      position: { x: rect.left, y: rect.top }
+    });
+  };
+
+  const handleCardLeave = () => {
+    setPreviewCard(null);
   };
 
   return (
     <div className={styles.container}>
+      <div className={styles.controls}>
+        <div className={styles.columnControls}>
+          <button 
+            className={styles.columnButton}
+            onClick={() => setShowColumnDropdown(!showColumnDropdown)}
+          >
+            Columns
+          </button>
+          {showColumnDropdown && (
+            <div className={styles.columnDropdown}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.colors}
+                  onChange={() => toggleColumnVisibility('colors')}
+                />
+                Colors
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.rarity}
+                  onChange={() => toggleColumnVisibility('rarity')}
+                />
+                Rarity
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.collectorNumber}
+                  onChange={() => toggleColumnVisibility('collectorNumber')}
+                />
+                Collector Number
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={columnVisibility.type}
+                  onChange={() => toggleColumnVisibility('type')}
+                />
+                Type
+              </label>
+            </div>
+          )}
+        </div>
+        <div className={styles.rarityFilter}>
+          <h4>Filter Rarities:</h4>
+          <div className={styles.rarityCheckboxes}>
+            {(['common', 'uncommon', 'rare', 'mythic', 'timeshifted'] as Rarity[]).map(rarity => (
+              <label key={rarity}>
+                <input
+                  type="checkbox"
+                  checked={selectedRarities.has(rarity)}
+                  onChange={() => {
+                    const newRarities = new Set(selectedRarities);
+                    if (newRarities.has(rarity)) {
+                      newRarities.delete(rarity);
+                    } else {
+                      newRarities.add(rarity);
+                    }
+                    setSelectedRarities(newRarities);
+                  }}
+                />
+                {rarity.charAt(0).toUpperCase() + rarity.slice(1)}
+              </label>
+            ))}
+          </div>
+        </div>
+      </div>
       <div className={styles.navbar}>
         <form className={styles.form}>
           <div className={styles.inputGroup}>
@@ -824,56 +895,6 @@ const ListSetSearch = () => {
             >
               {showGroupedSets ? 'Ungroup Sets' : 'Group Sets'}
             </button>
-            <button
-              type="button"
-              className={styles.submitButton}
-              onClick={(e) => {
-                e.preventDefault();
-                setShowColumnDropdown(!showColumnDropdown);
-              }}
-            >
-              Columns
-            </button>
-            {showColumnDropdown && (
-              <div className={styles.columnVisibilityDropdown}>
-                <div className={styles.columnVisibilityOption}>
-                  <input
-                    type="checkbox"
-                    id="colors"
-                    checked={columnVisibility.colors}
-                    onChange={() => toggleColumnVisibility('colors')}
-                  />
-                  <label htmlFor="colors">Colors</label>
-                </div>
-                <div className={styles.columnVisibilityOption}>
-                  <input
-                    type="checkbox"
-                    id="rarity"
-                    checked={columnVisibility.rarity}
-                    onChange={() => toggleColumnVisibility('rarity')}
-                  />
-                  <label htmlFor="rarity">Rarity</label>
-                </div>
-                <div className={styles.columnVisibilityOption}>
-                  <input
-                    type="checkbox"
-                    id="collectorNumber"
-                    checked={columnVisibility.collectorNumber}
-                    onChange={() => toggleColumnVisibility('collectorNumber')}
-                  />
-                  <label htmlFor="collectorNumber">Collector #</label>
-                </div>
-                <div className={styles.columnVisibilityOption}>
-                  <input
-                    type="checkbox"
-                    id="type"
-                    checked={columnVisibility.type}
-                    onChange={() => toggleColumnVisibility('type')}
-                  />
-                  <label htmlFor="type">Type</label>
-                </div>
-              </div>
-            )}
           </div>
         </form>
       </div>
@@ -986,7 +1007,13 @@ const ListSetSearch = () => {
                     {getSortedCards(set.cards).map(({ card, printing }, index) => (
                       <tr key={`${card.name}-${printing.set}-${index}`} className={getRowColorClass(card.colors)}>
                         <td>{card.quantity}</td>
-                        <td>{card.name}</td>
+                        <td 
+                          className={styles.cardName}
+                          onMouseEnter={(e) => handleCardHover(e, card, printing)}
+                          onMouseLeave={handleCardLeave}
+                        >
+                          {card.name}
+                        </td>
                         <td className={getColumnClass('type')}>
                           {card.type_line}
                         </td>
@@ -1014,6 +1041,15 @@ const ListSetSearch = () => {
           ))
         )}
       </div>
+      {previewCard && (
+        <CardPreview
+          cardName={previewCard.name}
+          setCode={previewCard.setCode}
+          collectorNumber={previewCard.collectorNumber}
+          isVisible={true}
+          position={previewCard.position}
+        />
+      )}
     </div>
   );
 };
