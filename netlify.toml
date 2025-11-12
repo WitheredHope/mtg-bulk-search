@@ -6,3 +6,7 @@
   from = "/*"
   to = "/index.html"
   status = 200 
+
+[[scheduled]]
+  name = "ping-supabase-background"
+  cron = "0 9 * * *" # every day at 9am UTC
