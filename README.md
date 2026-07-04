@@ -1,45 +1,51 @@
-# React Supabase Authentication
+# MTG Bulk Search
 
-A simple React application demonstrating email and password authentication using Supabase.
+A web app for searching through bulk Magic: The Gathering cards and knowing where to look for them. Paste in a card list, and it shows you which sets your cards appear in (using the [Scryfall API](https://scryfall.com/docs/api)), so you can flick through your bulk boxes set by set.
 
-## Setup
+Runs entirely locally — card lists and custom set groups are stored in a JSON file on disk. No accounts, no cloud services.
 
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
+## Running with Docker (recommended)
 
-3. Create a Supabase project:
-   - Go to [Supabase Dashboard](https://app.supabase.com/)
-   - Create a new project
-   - Enable Authentication
-   - Enable Email/Password authentication in the Authentication settings
+```bash
+docker compose up -d --build
+```
 
-4. Configure environment variables:
-   - Copy `.env` to `.env.local`
-   - Update the values with your Supabase configuration:
-     - `VITE_SUPABASE_URL`: Your Supabase project URL
-     - `VITE_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+Then open http://localhost:3000.
 
-5. Start the development server:
-   ```bash
-   npm run dev
-   ```
+Your saved lists and set groups are stored in `./data/db.json` (mounted into the container), so they survive rebuilds and restarts. Back up that one file to back up everything.
+
+## Running without Docker
+
+```bash
+npm install
+npm start
+```
+
+This builds the frontend and serves everything at http://localhost:3000.
+
+## Development
+
+Run the API server and the Vite dev server in two terminals:
+
+```bash
+npm run server   # API + data storage on port 3000
+npm run dev      # Vite dev server on port 5173 (proxies /api to port 3000)
+```
+
+Then open http://localhost:5173.
 
 ## Features
 
-- Email and Password Authentication
-- Protected Routes
-- Modern UI Design
-- TypeScript Support
-- Form Validation
-- Error Handling
+- Paste a card list (supports `2 Card Name`, `2x Card Name`, `Card Name x2`, `Card Name (2)`)
+- See every physical set each card was printed in
+- Group results by set, custom set groups, or colour
+- Filter by rarity, hide duplicates, and mark cards as found while you search
+- Card image previews on hover
+- Save and reload card lists
 
-## Technologies Used
+## Technologies
 
-- React
-- TypeScript
-- Supabase
+- React + TypeScript + Vite
 - React Router
-- CSS Modules
+- Plain Node.js API server (zero runtime dependencies) with JSON file storage
+- Scryfall API for card data

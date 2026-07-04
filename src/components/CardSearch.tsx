@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { searchCards } from '../services/scryfall';
 import { saveCardList, getCardLists, deleteCardList, CardList } from '../services/cardLists';
-import { supabase } from '../services/supabase';
 import styles from './CardSearch.module.css';
 
 interface CardData {
@@ -27,38 +26,15 @@ const CardSearch = () => {
   const [savedLists, setSavedLists] = useState<CardList[]>([]);
   const [listName, setListName] = useState('');
   const [showSaveDialog, setShowSaveDialog] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentListId, setCurrentListId] = useState<string | null>(null);
   const [hasListBeenEdited, setHasListBeenEdited] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    checkAuth();
+    loadSavedLists();
   }, []);
 
-  const checkAuth = async () => {
-    if (!supabase) {
-      console.log('Supabase client not available');
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
-      if (session) {
-        await loadSavedLists();
-      }
-    } catch (error: any) {
-      console.error('Auth check failed:', error);
-    }
-  };
-
   const loadSavedLists = async () => {
-    if (!supabase) {
-      console.log('Supabase client not available');
-      return;
-    }
-
     try {
       const lists = await getCardLists();
       setSavedLists(lists);
@@ -272,7 +248,7 @@ const CardSearch = () => {
           <button type="submit" className={styles.submitButton} disabled={isLoading}>
             {isLoading ? 'Searching...' : 'Search Cards'}
           </button>
-          {isAuthenticated && cardList.trim() && (
+          {cardList.trim() && (
             <>
               <button
                 type="button"
@@ -303,12 +279,6 @@ const CardSearch = () => {
         </div>
       </form>
 
-      {!isAuthenticated && (
-        <div className={styles.authMessage}>
-          <p>Please sign in to save and load card lists.</p>
-        </div>
-      )}
-
       {showSaveDialog && (
         <div className={styles.dialog}>
           <div className={styles.dialogContent}>
@@ -332,7 +302,7 @@ const CardSearch = () => {
         </div>
       )}
 
-      {isAuthenticated && savedLists.length > 0 && (
+      {savedLists.length > 0 && (
         <div className={styles.savedLists}>
           <h3>Saved Lists</h3>
           <ul>

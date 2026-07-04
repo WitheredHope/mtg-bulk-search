@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { searchCards, isDigitalOnlySet } from '../services/scryfall';
 import { getCardLists, CardList, saveCardList } from '../services/cardLists';
-import { supabase } from '../services/supabase';
+import { getSetGroups } from '../services/setGroups';
 import styles from './CardSearch.module.css';
 import { useLocation, useNavigate } from 'react-router-dom';
 import CardPreview from './CardPreview';
@@ -59,7 +59,6 @@ const ListSetSearch = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedLists, setSavedLists] = useState<CardList[]>([]);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [allSets, setAllSets] = useState<SetData[]>([]);
   const [expandedSet, setExpandedSet] = useState<string | null>(null);
   const [setNames, setSetNames] = useState<Record<string, string>>({});
@@ -103,33 +102,11 @@ const ListSetSearch = () => {
   };
 
   useEffect(() => {
-    checkAuth();
+    loadSavedLists();
     loadCustomGroups();
   }, []);
 
-  const checkAuth = async () => {
-    if (!supabase) {
-      console.log('Supabase client not available');
-      return;
-    }
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      setIsAuthenticated(!!session);
-      if (session) {
-        await loadSavedLists();
-      }
-    } catch (error: any) {
-      console.error('Auth check failed:', error);
-    }
-  };
-
   const loadSavedLists = async () => {
-    if (!supabase) {
-      console.log('Supabase client not available');
-      return;
-    }
-
     try {
       const lists = await getCardLists();
       setSavedLists(lists);
@@ -140,17 +117,8 @@ const ListSetSearch = () => {
 
   const loadCustomGroups = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data, error } = await supabase
-          .from('set_groups')
-          .select('*')
-          .eq('user_id', session.user.id);
-        
-        if (error) throw error;
-        console.log('Loaded custom groups:', data); // Debug log
-        setCustomGroups(data || []);
-      }
+      const groups = await getSetGroups();
+      setCustomGroups(groups);
     } catch (error) {
       console.error('Error loading custom groups:', error);
     }
@@ -1130,12 +1098,6 @@ const ListSetSearch = () => {
           </div>
         </form>
       </div>
-
-      {!isAuthenticated && (
-        <div className={styles.authMessage}>
-          <p>Please sign in to search cards from saved lists.</p>
-        </div>
-      )}
 
       {foundCards.length > 0 && (
         <div className={styles.foundCardsSection}>

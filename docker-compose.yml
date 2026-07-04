@@ -1,0 +1,9 @@
+services:
+  mtg-bulk-search:
+    build: .
+    container_name: mtg-bulk-search
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/data
+    restart: unless-stopped

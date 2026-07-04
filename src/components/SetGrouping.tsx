@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../services/supabase';
+import {
+  SetGroup,
+  getSetGroups,
+  createSetGroup,
+  updateSetGroup,
+  deleteSetGroup,
+} from '../services/setGroups';
 import styles from './CardSearch.module.css';
 
 // Function to fetch valid set codes from Scryfall API
@@ -23,20 +29,12 @@ const fetchValidSetCodes = async () => {
   }
 };
 
-interface SetGroup {
-  id: string;
-  name: string;
-  sets: string[];
-  user_id: string;
-}
-
 interface SetGroupingProps {
   onGroupsChange: (groups: SetGroup[]) => void;
   availableSets: string[];
-  userId: string;
 }
 
-const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange, availableSets, userId }) => {
+const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange }) => {
   const [groups, setGroups] = useState<SetGroup[]>([]);
   const [newGroupName, setNewGroupName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -48,17 +46,12 @@ const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange, availableSets
   useEffect(() => {
     loadGroups();
     fetchValidSetCodes().then(codes => setValidSetCodes(codes));
-  }, [userId]);
+  }, []);
 
   const loadGroups = async () => {
     try {
-      const { data, error } = await supabase
-        .from('set_groups')
-        .select('*')
-        .eq('user_id', userId);
+      const data = await getSetGroups();
 
-      if (error) throw error;
-      
       // Natural sort comparison function
       const naturalCompare = (a: string, b: string) => {
         const ax: any[] = [], bx: any[] = [];
@@ -109,19 +102,7 @@ const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange, availableSets
   const addGroup = async () => {
     if (newGroupName.trim()) {
       try {
-        const newGroup = {
-          name: newGroupName.trim(),
-          sets: [],
-          user_id: userId
-        };
-
-        const { data, error } = await supabase
-          .from('set_groups')
-          .insert([newGroup])
-          .select()
-          .single();
-
-        if (error) throw error;
+        const data = await createSetGroup(newGroupName.trim());
         setGroups([...groups, data]);
         setNewGroupName('');
       } catch (error) {
@@ -132,29 +113,17 @@ const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange, availableSets
 
   const deleteGroup = async (groupId: string) => {
     try {
-      const { error } = await supabase
-        .from('set_groups')
-        .delete()
-        .eq('id', groupId);
-
-      if (error) throw error;
+      await deleteSetGroup(groupId);
       setGroups(groups.filter(group => group.id !== groupId));
     } catch (error) {
       console.error('Error deleting group:', error);
     }
   };
 
-  const updateGroup = async (groupId: string, updates: Partial<SetGroup>) => {
+  const updateGroup = async (groupId: string, updates: Partial<Pick<SetGroup, 'name' | 'sets'>>) => {
     try {
-      const { data, error } = await supabase
-        .from('set_groups')
-        .update(updates)
-        .eq('id', groupId)
-        .select()
-        .single();
-
-      if (error) throw error;
-      setGroups(groups.map(group => 
+      const data = await updateSetGroup(groupId, updates);
+      setGroups(groups.map(group =>
         group.id === groupId ? data : group
       ));
     } catch (error) {
@@ -181,15 +150,9 @@ const SetGrouping: React.FC<SetGroupingProps> = ({ onGroupsChange, availableSets
       if (!group) return;
 
       const updatedSets = group.sets.filter(set => set !== setCode);
-      
-      const { error } = await supabase
-        .from('set_groups')
-        .update({ sets: updatedSets })
-        .eq('id', groupId);
+      await updateSetGroup(groupId, { sets: updatedSets });
 
-      if (error) throw error;
-
-      setGroups(groups.map(g => 
+      setGroups(groups.map(g =>
         g.id === groupId ? { ...g, sets: updatedSets } : g
       ));
     } catch (error) {

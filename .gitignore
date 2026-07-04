@@ -13,6 +13,9 @@ dist-ssr
 *.local
 .env
 
+# Local app data (card lists, set groups)
+data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

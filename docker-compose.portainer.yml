@@ -1,0 +1,15 @@
+# Compose file for deploying as a Portainer stack (git repository method).
+# Uses a named volume instead of a bind mount so data survives stack
+# redeploys (Portainer re-clones the repo on each redeploy).
+services:
+  mtg-bulk-search:
+    build: .
+    container_name: mtg-bulk-search
+    ports:
+      - "3000:3000"
+    volumes:
+      - mtg-data:/data
+    restart: unless-stopped
+
+volumes:
+  mtg-data:
