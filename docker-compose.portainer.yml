@@ -1,9 +1,11 @@
 # Compose file for deploying as a Portainer stack (git repository method).
-# Uses a named volume instead of a bind mount so data survives stack
-# redeploys (Portainer re-clones the repo on each redeploy).
+#
+# Uses the prebuilt image from GHCR (published by .github/workflows/docker.yml)
+# because Portainer Agent environments cannot build images inside a stack.
+# Uses a named volume instead of a bind mount so data survives stack redeploys.
 services:
   mtg-bulk-search:
-    build: .
+    image: ghcr.io/witheredhope/mtg-bulk-search:latest
     container_name: mtg-bulk-search
     ports:
       - "3000:3000"
